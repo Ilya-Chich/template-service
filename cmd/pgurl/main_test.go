@@ -3,17 +3,15 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 )
 
 const exampleURL = "postgres://example/db"
 
-type failedWriter struct{}
+var _ io.Writer = (*MockWriter)(nil)
 
-func (failedWriter) Write([]byte) (int, error) {
-	return 0, errors.New("write failed")
-}
 func TestRun(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -45,7 +43,9 @@ func TestRunWriteFailure(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("POSTGRES_URL", exampleURL)
 	var stderr bytes.Buffer
-	if code := run(failedWriter{}, &stderr); code != 1 || !strings.Contains(stderr.String(), "cannot write migration URL") {
+	writer := NewMockWriter(t)
+	writer.EXPECT().Write([]byte(exampleURL+"\n")).Return(0, errors.New("write failed")).Once()
+	if code := run(writer, &stderr); code != 1 || !strings.Contains(stderr.String(), "cannot write migration URL") {
 		t.Fatal("write failure did not produce a nonzero exit")
 	}
 }

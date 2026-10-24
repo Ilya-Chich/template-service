@@ -4,261 +4,246 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/segmentio/kafka-go"
-	"http-api-template/internal/core/domain"
-	"http-api-template/internal/core/requestid"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/segmentio/kafka-go"
+	"github.com/stretchr/testify/mock"
+	"http-api-template/internal/core/domain"
+	"http-api-template/internal/core/requestid"
+	portmocks "http-api-template/internal/mocks/port"
 )
 
 var errUnavailable = errors.New("dependency unavailable")
 
-const commitFirst = "commit:1"
-const processCreateCall = "process:create"
-
-type fakeReader struct {
-	messages       []kafka.Message
-	next           int
-	trace          *[]string
-	fetchFailures  int
-	commitFailures int
-	commitCalls    int
-	closeCalls     int
-	closeErr       error
-	cancel         context.CancelFunc
-	fetch          func(context.Context) (kafka.Message, error)
+type consumerFixture struct {
+	consumer  *Consumer
+	reader    *MockMessageReader
+	processor *portmocks.MockDummyProcessor
+	ids       *portmocks.MockIDGenerator
+	logger    *portmocks.MockLogger
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
-func (r *fakeReader) FetchMessage(ctx context.Context) (kafka.Message, error) {
-	if r.fetch != nil {
-		return r.fetch(ctx)
-	}
-	if r.fetchFailures > 0 {
-		r.fetchFailures--
-		*r.trace = append(*r.trace, "fetch-error")
-		return kafka.Message{}, errUnavailable
-	}
-	if r.next == len(r.messages) {
-		r.cancel()
-		return kafka.Message{}, ctx.Err()
-	}
-	message := r.messages[r.next]
-	r.next++
-	*r.trace = append(*r.trace, fmt.Sprintf("fetch:%d", message.Offset))
-	return message, nil
-}
-func (r *fakeReader) CommitMessages(_ context.Context, messages ...kafka.Message) error {
-	r.commitCalls++
-	*r.trace = append(*r.trace, fmt.Sprintf("commit:%d", messages[0].Offset))
-	if r.commitFailures > 0 {
-		r.commitFailures--
-		return errUnavailable
-	}
-	return nil
-}
-func (r *fakeReader) Close() error {
-	r.closeCalls++
-	*r.trace = append(*r.trace, "close")
-	return r.closeErr
-}
-
-type fakeProcessor struct {
-	trace     *[]string
-	failures  []error
-	ids       []string
-	calls     int
-	dummy     domain.Dummy
-	patch     domain.Patch
-	onProcess func()
-}
-
-func (p *fakeProcessor) result(ctx context.Context, kind string) error {
-	p.calls++
-	p.ids = append(p.ids, requestid.ID(ctx))
-	*p.trace = append(*p.trace, "process:"+kind)
-	if p.onProcess != nil {
-		p.onProcess()
-	}
-	if len(p.failures) == 0 {
-		return nil
-	}
-	err := p.failures[0]
-	p.failures = p.failures[1:]
-	return err
-}
-func (p *fakeProcessor) ProcessCreate(ctx context.Context, dummy domain.Dummy) error {
-	p.dummy = dummy
-	return p.result(ctx, eventCreate)
-}
-func (p *fakeProcessor) ProcessUpdate(ctx context.Context, _ string, patch domain.Patch) error {
-	p.patch = patch
-	return p.result(ctx, eventUpdate)
-}
-func (p *fakeProcessor) ProcessDelete(ctx context.Context, _ string) error {
-	return p.result(ctx, eventDelete)
-}
-func consumerForTest(t *testing.T, messages []kafka.Message, processor *fakeProcessor) (*Consumer, *fakeReader, context.Context, *fakeIDs) {
+func newConsumerFixture(t *testing.T) *consumerFixture {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	trace := []string{}
-	reader := &fakeReader{messages: messages, cancel: cancel, trace: &trace}
-	processor.trace = &trace
-	ids := &fakeIDs{}
-	consumer := NewConsumer(reader, processor, &testLog{}, ids)
-	return consumer, reader, ctx, ids
+	f := &consumerFixture{reader: NewMockMessageReader(t), processor: portmocks.NewMockDummyProcessor(t), ids: portmocks.NewMockIDGenerator(t), logger: portmocks.NewMockLogger(t), ctx: ctx, cancel: cancel}
+	f.consumer = NewConsumer(f.reader, f.processor, f.logger, f.ids)
+	return f
 }
+
+func (f *consumerFixture) end() *mock.Call {
+	return f.reader.EXPECT().FetchMessage(f.ctx).RunAndReturn(func(ctx context.Context) (kafka.Message, error) {
+		f.cancel()
+		return kafka.Message{}, ctx.Err()
+	}).Once()
+}
+
 func kafkaMessage(data string, offset int64) kafka.Message {
 	return kafka.Message{Value: []byte(data), Offset: offset, Headers: []kafka.Header{{Key: RequestIDHeader, Value: []byte(incomingID)}}}
 }
+func correlatedContext(id string) interface{} {
+	return mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == id })
+}
 func TestConsumerDispatch(t *testing.T) {
-	processor := &fakeProcessor{}
-	consumer, reader, ctx, _ := consumerForTest(t, []kafka.Message{kafkaMessage(createJSON, 1), kafkaMessage(updateJSON, 2), kafkaMessage(deleteJSON, 3)}, processor)
-	if err := consumer.Run(ctx); err != nil {
+	f := newConsumerFixture(t)
+	create, update, remove := kafkaMessage(createJSON, 1), kafkaMessage(updateJSON, 2), kafkaMessage(deleteJSON, 3)
+	empty := ""
+	ctx := correlatedContext(incomingID)
+	decoded, err := decodeEvent(create.Value)
+	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"fetch:1", processCreateCall, commitFirst, "fetch:2", "process:update", "commit:2", "fetch:3", "process:delete", "commit:3", "close"}
-	if !reflect.DeepEqual(*reader.trace, want) || reader.closeCalls != 1 {
-		t.Fatalf("trace=%v closes=%d", *reader.trace, reader.closeCalls)
-	}
-	if processor.dummy.ID != testDummyID || processor.patch.Note == nil || *processor.patch.Note != "" {
-		t.Fatal("processor received incorrect payloads")
-	}
-	if !reflect.DeepEqual(processor.ids, []string{incomingID, incomingID, incomingID}) {
-		t.Fatal("processor lost request IDs")
+	mock.InOrder(
+		f.reader.EXPECT().FetchMessage(f.ctx).Return(create, nil).Once(),
+		f.processor.EXPECT().ProcessCreate(ctx, decoded.dummy).Return(nil).Once(),
+		f.reader.EXPECT().CommitMessages(ctx, create).Return(nil).Once(),
+		f.reader.EXPECT().FetchMessage(f.ctx).Return(update, nil).Once(),
+		f.processor.EXPECT().ProcessUpdate(ctx, testDummyID, domain.Patch{Note: &empty}).Return(nil).Once(),
+		f.reader.EXPECT().CommitMessages(ctx, update).Return(nil).Once(),
+		f.reader.EXPECT().FetchMessage(f.ctx).Return(remove, nil).Once(),
+		f.processor.EXPECT().ProcessDelete(ctx, testDummyID).Return(nil).Once(),
+		f.reader.EXPECT().CommitMessages(ctx, remove).Return(nil).Once(),
+		f.end(),
+		f.reader.EXPECT().Close().Return(nil).Once(),
+	)
+	if err := f.consumer.Run(f.ctx); err != nil {
+		t.Fatal(err)
 	}
 }
 func TestConsumerRetries(t *testing.T) {
-	processor := &fakeProcessor{failures: []error{errUnavailable, nil}}
+	f := newConsumerFixture(t)
 	message := kafkaMessage(createJSON, 1)
 	message.Headers = nil
-	consumer, reader, ctx, ids := consumerForTest(t, []kafka.Message{message}, processor)
-	reader.fetchFailures, reader.commitFailures = 1, 2
-	var delays []time.Duration
-	consumer.wait = func(_ context.Context, delay time.Duration) error {
-		delays = append(delays, delay)
-		return nil
-	}
-	if err := consumer.Run(ctx); err != nil {
+	decoded, err := decodeEvent(message.Value)
+	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"fetch-error", "fetch:1", processCreateCall, processCreateCall, commitFirst, commitFirst, commitFirst, "close"}
-	if !reflect.DeepEqual(*reader.trace, want) {
-		t.Fatalf("trace=%v", *reader.trace)
+	ctx := correlatedContext(generatedID)
+	mock.InOrder(
+		f.reader.EXPECT().FetchMessage(f.ctx).Return(kafka.Message{}, errUnavailable).Once(),
+		f.logger.EXPECT().Error(f.ctx, "Kafka read failed").Once(),
+		f.reader.EXPECT().FetchMessage(f.ctx).Return(message, nil).Once(),
+		f.ids.EXPECT().NewID().Return(generatedID, nil).Once(),
+		f.processor.EXPECT().ProcessCreate(ctx, decoded.dummy).Return(errUnavailable).Once(),
+		f.logger.EXPECT().Error(ctx, "Kafka processing failed").Once(),
+		f.processor.EXPECT().ProcessCreate(ctx, decoded.dummy).Return(nil).Once(),
+		f.reader.EXPECT().CommitMessages(ctx, message).Return(errUnavailable).Once(),
+		f.logger.EXPECT().Error(ctx, "Kafka commit failed").Once(),
+		f.reader.EXPECT().CommitMessages(ctx, message).Return(errUnavailable).Once(),
+		f.logger.EXPECT().Error(ctx, "Kafka commit failed").Once(),
+		f.reader.EXPECT().CommitMessages(ctx, message).Return(nil).Once(),
+		f.end(),
+		f.reader.EXPECT().Close().Return(nil).Once(),
+	)
+	var delays []time.Duration
+	f.consumer.wait = func(_ context.Context, delay time.Duration) error { delays = append(delays, delay); return nil }
+	if err := f.consumer.Run(f.ctx); err != nil {
+		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(delays, []time.Duration{initialBackoff, initialBackoff, initialBackoff, 2 * initialBackoff}) {
 		t.Fatalf("delays=%v", delays)
 	}
-	if ids.calls != 1 || !reflect.DeepEqual(processor.ids, []string{generatedID, generatedID}) {
-		t.Fatal("request ID was regenerated during retries")
-	}
 }
 func TestConsumerPermanentFailures(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		data    string
-		failure error
-		calls   int
+		name, data string
+		failure    error
 	}{
-		{"malformed", "private-invalid-payload", nil, 0},
-		{"unknown", `{"event_type":"unknown","dummy_id":"` + testDummyID + `"}`, nil, 0},
-		{"null patch", `{"event_type":"update","dummy_id":"` + testDummyID + `","patch":{"note":null}}`, nil, 0},
-		{"invalid command", createJSON, fmt.Errorf("processor: %w", domain.ErrInvalid), 1},
-		{"conflict", updateJSON, fmt.Errorf("processor: %w", domain.ErrConflict), 1},
+		{"malformed", "private-invalid-payload", nil},
+		{"unknown", `{"event_type":"unknown","dummy_id":"` + testDummyID + `"}`, nil},
+		{"null patch", `{"event_type":"update","dummy_id":"` + testDummyID + `","patch":{"note":null}}`, nil},
+		{"invalid command", createJSON, fmt.Errorf("processor: %w", domain.ErrInvalid)},
+		{"conflict", updateJSON, fmt.Errorf("processor: %w", domain.ErrConflict)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			processor := &fakeProcessor{failures: []error{tc.failure}}
-			consumer, reader, ctx, _ := consumerForTest(t, []kafka.Message{kafkaMessage(tc.data, 1)}, processor)
-			consumer.wait = func(_ context.Context, _ time.Duration) error {
+			f := newConsumerFixture(t)
+			message := kafkaMessage(tc.data, 1)
+			ctx := correlatedContext(incomingID)
+			calls := []*mock.Call{f.reader.EXPECT().FetchMessage(f.ctx).Return(message, nil).Once()}
+			if tc.failure != nil {
+				decoded, err := decodeEvent(message.Value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tc.data == createJSON {
+					calls = append(calls, f.processor.EXPECT().ProcessCreate(ctx, decoded.dummy).Return(tc.failure).Once())
+				} else {
+					calls = append(calls, f.processor.EXPECT().ProcessUpdate(ctx, decoded.id, decoded.patch).Return(tc.failure).Once())
+				}
+				calls = append(calls, f.logger.EXPECT().Error(ctx, "Kafka event skipped", "reason", "permanent_command_failure", "event_type", decoded.kind).Once())
+			} else {
+				calls = append(calls, f.logger.EXPECT().Error(ctx, "Kafka event skipped", "reason", "invalid_event").Once())
+			}
+			calls = append(calls, f.reader.EXPECT().CommitMessages(ctx, message).Return(nil).Once(), f.end(), f.reader.EXPECT().Close().Return(nil).Once())
+			mock.InOrder(calls...)
+			f.consumer.wait = func(context.Context, time.Duration) error {
 				t.Error("permanent errors must not retry")
 				return errUnavailable
 			}
-			if err := consumer.Run(ctx); err != nil {
+			if err := f.consumer.Run(f.ctx); err != nil {
 				t.Fatal(err)
-			}
-			if processor.calls != tc.calls || reader.commitCalls != 1 {
-				t.Fatalf("processor calls=%d commits=%d", processor.calls, reader.commitCalls)
 			}
 		})
 	}
 }
 func TestConsumerReplayAfterUncommittedProcessing(t *testing.T) {
-	processor := &fakeProcessor{}
 	message := kafkaMessage(deleteJSON, 7)
-	first, reader, ctx, _ := consumerForTest(t, []kafka.Message{message}, processor)
-	reader.commitFailures = 1
-	first.wait = func(ctx context.Context, _ time.Duration) error {
-		reader.cancel()
-		return ctx.Err()
-	}
-	if err := first.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-	second, replayReader, replayCtx, _ := consumerForTest(t, []kafka.Message{message}, processor)
-	if err := second.Run(replayCtx); err != nil {
-		t.Fatal(err)
-	}
-	if processor.calls != 2 || replayReader.commitCalls != 1 {
-		t.Fatal("uncommitted messages must be processed again after restart")
+	for _, replay := range []bool{false, true} {
+		t.Run(fmt.Sprintf("replay=%v", replay), func(t *testing.T) {
+			f := newConsumerFixture(t)
+			ctx := correlatedContext(incomingID)
+			calls := []*mock.Call{
+				f.reader.EXPECT().FetchMessage(f.ctx).Return(message, nil).Once(),
+				f.processor.EXPECT().ProcessDelete(ctx, testDummyID).Return(nil).Once(),
+			}
+			if replay {
+				calls = append(calls, f.reader.EXPECT().CommitMessages(ctx, message).Return(nil).Once(), f.end())
+			} else {
+				calls = append(calls, f.reader.EXPECT().CommitMessages(ctx, message).Return(errUnavailable).Once(), f.logger.EXPECT().Error(ctx, "Kafka commit failed").Once())
+				f.consumer.wait = func(ctx context.Context, _ time.Duration) error { f.cancel(); return ctx.Err() }
+			}
+			calls = append(calls, f.reader.EXPECT().Close().Return(nil).Once())
+			mock.InOrder(calls...)
+			if err := f.consumer.Run(f.ctx); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 func TestCancellationAndLifecycleErrors(t *testing.T) {
 	t.Run("fetch cancellation closes reader and exits", func(t *testing.T) {
-		consumer, reader, ctx, _ := consumerForTest(t, nil, &fakeProcessor{})
+		f := newConsumerFixture(t)
 		started := make(chan struct{})
-		reader.fetch = func(ctx context.Context) (kafka.Message, error) {
-			close(started)
-			<-ctx.Done()
-			return kafka.Message{}, ctx.Err()
-		}
+		mock.InOrder(
+			f.reader.EXPECT().FetchMessage(f.ctx).RunAndReturn(func(ctx context.Context) (kafka.Message, error) {
+				close(started)
+				<-ctx.Done()
+				return kafka.Message{}, ctx.Err()
+			}).Once(),
+			f.reader.EXPECT().Close().Return(nil).Once(),
+		)
 		done := make(chan error, 1)
-		go func() { done <- consumer.Run(ctx) }()
+		go func() { done <- f.consumer.Run(f.ctx) }()
 		<-started
-		reader.cancel()
+		f.cancel()
 		select {
 		case err := <-done:
-			if err != nil || reader.closeCalls != 1 {
-				t.Fatalf("error=%v closes=%d", err, reader.closeCalls)
+			if err != nil {
+				t.Fatal(err)
 			}
 		case <-time.After(time.Second):
 			t.Fatal("consumer did not exit")
 		}
 	})
 	t.Run("processing cancellation does not commit", func(t *testing.T) {
-		processor := &fakeProcessor{failures: []error{errUnavailable}}
-		consumer, reader, ctx, _ := consumerForTest(t, []kafka.Message{kafkaMessage(createJSON, 1)}, processor)
-		processor.onProcess = reader.cancel
-		if err := consumer.Run(ctx); err != nil || reader.commitCalls != 0 {
-			t.Fatal("canceled processing was committed")
+		f := newConsumerFixture(t)
+		message := kafkaMessage(createJSON, 1)
+		decoded, err := decodeEvent(message.Value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mock.InOrder(
+			f.reader.EXPECT().FetchMessage(f.ctx).Return(message, nil).Once(),
+			f.processor.EXPECT().ProcessCreate(correlatedContext(incomingID), decoded.dummy).Run(func(context.Context, domain.Dummy) { f.cancel() }).Return(errUnavailable).Once(),
+			f.reader.EXPECT().Close().Return(nil).Once(),
+		)
+		if err := f.consumer.Run(f.ctx); err != nil {
+			t.Fatal(err)
 		}
 	})
 	t.Run("correlation failure is returned without commit", func(t *testing.T) {
+		f := newConsumerFixture(t)
 		message := kafkaMessage(createJSON, 1)
 		message.Headers = nil
-		consumer, reader, ctx, ids := consumerForTest(t, []kafka.Message{message}, &fakeProcessor{})
-		ids.err = errUnavailable
-		if err := consumer.Run(ctx); !errors.Is(err, errUnavailable) || reader.commitCalls != 0 || reader.closeCalls != 1 {
+		mock.InOrder(
+			f.reader.EXPECT().FetchMessage(f.ctx).Return(message, nil).Once(),
+			f.ids.EXPECT().NewID().Return("", errUnavailable).Once(),
+			f.reader.EXPECT().Close().Return(nil).Once(),
+		)
+		if err := f.consumer.Run(f.ctx); !errors.Is(err, errUnavailable) {
 			t.Fatalf("error=%v", err)
 		}
 	})
 	t.Run("close failure is returned", func(t *testing.T) {
-		consumer, reader, ctx, _ := consumerForTest(t, nil, &fakeProcessor{})
-		reader.closeErr = errUnavailable
-		if err := consumer.Run(ctx); !errors.Is(err, errUnavailable) {
+		f := newConsumerFixture(t)
+		mock.InOrder(f.end(), f.reader.EXPECT().Close().Return(errUnavailable).Once())
+		if err := f.consumer.Run(f.ctx); !errors.Is(err, errUnavailable) {
 			t.Fatalf("error=%v", err)
 		}
 	})
 }
 func TestBackoff(t *testing.T) {
-	consumer, _, _, _ := consumerForTest(t, nil, &fakeProcessor{})
+	f := newConsumerFixture(t)
+	f.logger.EXPECT().Error(mock.Anything, "retry").Times(9)
 	var delays []time.Duration
-	consumer.wait = func(_ context.Context, delay time.Duration) error {
-		delays = append(delays, delay)
-		return nil
-	}
+	f.consumer.wait = func(_ context.Context, delay time.Duration) error { delays = append(delays, delay); return nil }
 	attempts := 0
-	err := consumer.retry(context.Background(), func() error {
+	err := f.consumer.retry(context.Background(), func() error {
 		attempts++
 		if attempts == 10 {
 			return nil

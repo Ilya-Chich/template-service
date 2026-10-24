@@ -20,23 +20,12 @@ var (
 	_ MessageWriter = (*MockMessageWriter)(nil)
 )
 
-type testLog struct {
-	messages []string
-}
-
-func (l *testLog) Info(_ context.Context, message string, _ ...any) {
-	l.messages = append(l.messages, message)
-}
-func (l *testLog) Error(_ context.Context, message string, _ ...any) {
-	l.messages = append(l.messages, message)
-}
-
 func TestPublisher(t *testing.T) {
 	for _, kind := range []string{eventCreate, eventUpdate, eventDelete} {
 		t.Run(kind, func(t *testing.T) {
 			writer := NewMockMessageWriter(t)
 			logger := portmocks.NewMockLogger(t)
-			publisher := NewPublisher(writer, logger, &fakeIDs{})
+			publisher := NewPublisher(writer, logger, portmocks.NewMockIDGenerator(t))
 			ctx := requestid.WithID(context.Background(), incomingID)
 			var message kafka.Message
 			writer.EXPECT().WriteMessages(ctx, mock.Anything).Run(func(_ context.Context, messages ...kafka.Message) {
@@ -61,7 +50,7 @@ func TestPublisher(t *testing.T) {
 			if err != nil || decoded.kind != kind || string(message.Key) != testDummyID {
 				t.Fatal("message codec or partition key failed")
 			}
-			messageCtx, err := MessageContext(context.Background(), message, &fakeIDs{})
+			messageCtx, err := MessageContext(context.Background(), message, portmocks.NewMockIDGenerator(t))
 			if err != nil || requestid.ID(messageCtx) != incomingID {
 				t.Fatal("correlation header was not published")
 			}
@@ -73,7 +62,11 @@ func TestPublisherFailures(t *testing.T) {
 	writer := NewMockMessageWriter(t)
 	writer.EXPECT().WriteMessages(mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == generatedID }), mock.Anything).Return(unavailable).Once()
 	writer.EXPECT().Close().Return(unavailable).Once()
-	publisher := NewPublisher(writer, &testLog{}, &fakeIDs{})
+	ids := portmocks.NewMockIDGenerator(t)
+	ids.EXPECT().NewID().Return(generatedID, nil).Once()
+	logger := portmocks.NewMockLogger(t)
+	logger.EXPECT().Error(mock.Anything, "Kafka publication failed", "event_type", eventDelete).Once()
+	publisher := NewPublisher(writer, logger, ids)
 	if err := publisher.PublishDelete(context.Background(), testDummyID); !errors.Is(err, unavailable) {
 		t.Fatalf("publication error=%v", err)
 	}
@@ -89,8 +82,9 @@ func TestPublisherFailures(t *testing.T) {
 			t.Fatal("invalid input reached the writer")
 		}
 	}
-	ids := &fakeIDs{err: unavailable}
-	if err := NewPublisher(writer, &testLog{}, ids).PublishDelete(context.Background(), testDummyID); !errors.Is(err, unavailable) {
+	failedIDs := portmocks.NewMockIDGenerator(t)
+	failedIDs.EXPECT().NewID().Return("", unavailable).Once()
+	if err := NewPublisher(writer, logger, failedIDs).PublishDelete(context.Background(), testDummyID); !errors.Is(err, unavailable) {
 		t.Fatal("correlation error was not returned")
 	}
 }

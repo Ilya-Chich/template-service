@@ -6,21 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"http-api-template/internal/core/requestid"
+	portmocks "http-api-template/internal/mocks/port"
 	"log/slog"
 	"strings"
 	"testing"
 )
 
-type fakeIDs struct {
-	err error
-}
-
-func (f fakeIDs) NewID() (string, error) {
-	return "generated-id", f.err
-}
 func TestJSONLogging(t *testing.T) {
 	var output bytes.Buffer
-	log := New(&output, fakeIDs{})
+	log := New(&output, portmocks.NewMockIDGenerator(t))
 	ctx := requestid.WithID(context.Background(), "incoming-id")
 	log.Info(ctx, "request accepted", "status", 202)
 	log.Error(ctx, "operation failed", "password", "private-password", "JWT_SECRET", "private-key", "Authorization", "private-token", "payload", "private-payload", slog.Group("nested", slog.String("access_token", "private-access")))
@@ -53,7 +47,9 @@ func TestFallbackCorrelation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var output bytes.Buffer
-			log := New(&output, fakeIDs{err: tc.err})
+			ids := portmocks.NewMockIDGenerator(t)
+			ids.EXPECT().NewID().Return("generated-id", tc.err).Once()
+			log := New(&output, ids)
 			log.Info(context.Background(), "worker")
 			var record map[string]any
 			if err := json.Unmarshal(output.Bytes(), &record); err != nil {

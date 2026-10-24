@@ -5,23 +5,15 @@ import (
 	"errors"
 	"github.com/segmentio/kafka-go"
 	"http-api-template/internal/core/requestid"
+	portmocks "http-api-template/internal/mocks/port"
 	"testing"
 )
 
 const incomingID = "incoming-id"
 const generatedID = "generated-id"
 
-type fakeIDs struct {
-	calls int
-	err   error
-}
-
-func (f *fakeIDs) NewID() (string, error) {
-	f.calls++
-	return generatedID, f.err
-}
 func TestPropagation(t *testing.T) {
-	ids := &fakeIDs{}
+	ids := portmocks.NewMockIDGenerator(t)
 	ctx := requestid.WithID(context.Background(), incomingID)
 	message := kafka.Message{Headers: []kafka.Header{{Key: "other", Value: []byte("kept")}, {Key: RequestIDHeader, Value: []byte("old")}}}
 	publishedCtx, err := SetMessageRequestID(ctx, ids, &message)
@@ -29,12 +21,12 @@ func TestPropagation(t *testing.T) {
 		t.Fatal("publication did not preserve the request context and unrelated headers")
 	}
 	consumedCtx, err := MessageContext(context.Background(), message, ids)
-	if err != nil || requestid.ID(consumedCtx) != incomingID || ids.calls != 0 {
+	if err != nil || requestid.ID(consumedCtx) != incomingID {
 		t.Fatal("consumption did not preserve the originating request ID")
 	}
 	for range 3 {
 		consumedCtx, err = requestid.Ensure(consumedCtx, ids)
-		if err != nil || requestid.ID(consumedCtx) != incomingID || ids.calls != 0 {
+		if err != nil || requestid.ID(consumedCtx) != incomingID {
 			t.Fatal("retry correlation changed")
 		}
 	}
@@ -49,19 +41,22 @@ func TestExternalMessages(t *testing.T) {
 		{"duplicate", []kafka.Header{{Key: RequestIDHeader, Value: []byte(incomingID)}, {Key: RequestIDHeader, Value: []byte(incomingID)}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ids := &fakeIDs{}
+			ids := portmocks.NewMockIDGenerator(t)
+			ids.EXPECT().NewID().Return(generatedID, nil).Once()
 			parent := requestid.WithID(context.Background(), "unrelated-parent")
 			ctx, err := MessageContext(parent, kafka.Message{Headers: tc.headers}, ids)
-			if err != nil || requestid.ID(ctx) != generatedID || ids.calls != 1 {
-				t.Fatalf("error=%v calls=%d", err, ids.calls)
+			if err != nil || requestid.ID(ctx) != generatedID {
+				t.Fatalf("error=%v", err)
 			}
 		})
 	}
-	ids := &fakeIDs{err: errors.New("entropy unavailable")}
-	if _, err := MessageContext(context.Background(), kafka.Message{}, ids); !errors.Is(err, ids.err) {
+	failure := errors.New("entropy unavailable")
+	ids := portmocks.NewMockIDGenerator(t)
+	ids.EXPECT().NewID().Return("", failure).Twice()
+	if _, err := MessageContext(context.Background(), kafka.Message{}, ids); !errors.Is(err, failure) {
 		t.Fatal("consumer generation error was not propagated")
 	}
-	if _, err := SetMessageRequestID(context.Background(), ids, &kafka.Message{}); !errors.Is(err, ids.err) {
+	if _, err := SetMessageRequestID(context.Background(), ids, &kafka.Message{}); !errors.Is(err, failure) {
 		t.Fatal("producer generation error was not propagated")
 	}
 }

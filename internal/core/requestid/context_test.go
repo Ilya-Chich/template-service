@@ -3,20 +3,11 @@ package requestid
 import (
 	"context"
 	"errors"
+	portmocks "http-api-template/internal/mocks/port"
 	"strings"
 	"testing"
 )
 
-type fakeIDs struct {
-	value string
-	err   error
-	calls int
-}
-
-func (f *fakeIDs) NewID() (string, error) {
-	f.calls++
-	return f.value, f.err
-}
 func TestValid(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -40,25 +31,27 @@ func TestValid(t *testing.T) {
 	}
 }
 func TestEnsure(t *testing.T) {
-	ids := &fakeIDs{value: "generated-id"}
+	ids := portmocks.NewMockIDGenerator(t)
+	ids.EXPECT().NewID().Return("generated-id", nil).Once()
 	parent, cancel := context.WithCancel(context.Background())
 	ctx, err := Ensure(parent, ids)
-	if err != nil || ID(ctx) != ids.value || ids.calls != 1 {
-		t.Fatalf("error=%v calls=%d", err, ids.calls)
+	if err != nil || ID(ctx) != "generated-id" {
+		t.Fatalf("error=%v", err)
 	}
 	again, err := Ensure(ctx, ids)
-	if err != nil || again != ctx || ids.calls != 1 {
+	if err != nil || again != ctx {
 		t.Fatal("existing IDs must remain stable")
 	}
 	cancel()
 	if !errors.Is(ctx.Err(), context.Canceled) {
 		t.Fatal("parent cancellation was lost")
 	}
-	ids.err = errors.New("entropy unavailable")
-	if _, err := Ensure(context.Background(), ids); !errors.Is(err, ids.err) {
+	failure := errors.New("entropy unavailable")
+	ids.EXPECT().NewID().Return("", failure).Once()
+	if _, err := Ensure(context.Background(), ids); !errors.Is(err, failure) {
 		t.Fatal("generation failure was not propagated")
 	}
-	ids.err, ids.value = nil, "invalid value"
+	ids.EXPECT().NewID().Return("invalid value", nil).Once()
 	if _, err := Ensure(context.Background(), ids); err == nil {
 		t.Fatal("invalid generated IDs must fail")
 	}

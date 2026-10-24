@@ -51,9 +51,9 @@ Pinned tools from `tools/go.mod` merge the split spec and generate `internal/ada
 
 ## 5. Test services before connecting routes
 
-Add repository, publisher, issuer, and ID-generator mock expectations alongside core services before wiring new HTTP handlers. Cover validation, dependency failures, replay/no-op behavior, and explicit empty patch values. Test HTTP mapping/auth with `httptest` and fake services; test Kafka processing and commit retries separately. Normal checks require no database, broker, Docker, TLS certificates, or `.env`.
+Add repository, publisher, issuer, and ID-generator mock expectations alongside core services before wiring new HTTP handlers. Cover validation, dependency failures, replay/no-op behavior, and explicit empty patch values. Test HTTP mapping/auth with `httptest` and generated service mocks; test Kafka processing and commit retries separately. Normal checks require no database, broker, Docker, TLS certificates, or `.env`.
 
-Run `make mocks` after changing an interface. Mockery v3.5.5 is pinned in `tools/go.mod`; no global installation is needed. `.mockery.yml` explicitly selects core ports (generated into `internal/mocks/port`) and Kafka reader/writer interfaces (generated into adapter-local `mock_*_test.go` files). Commit regenerated output with interface changes and never edit generated mocks by hand. If an interface is removed or renamed, remove its obsolete generated file as well. Generation runs independently of tests, OpenAPI, and infrastructure.
+Run `make mocks` after changing an interface. Mockery v3.5.5 is pinned in `tools/go.mod`; no global installation is needed. `.mockery.yml` explicitly selects core ports (generated into `internal/mocks/port`), Kafka reader/writer interfaces (generated into adapter-local `mock_*_test.go` files), and `io.Writer` (generated into `cmd/pgurl/mock_writer_test.go`). Commit regenerated output with interface changes and never edit generated mocks by hand. If an interface is removed or renamed, remove its obsolete generated file as well. Generation runs independently of tests, OpenAPI, and infrastructure.
 
 Use a fresh mock per test or subtest. Constructors register expectation checks with test cleanup; unexpected calls fail even when no expectations were registered, which checks validation short circuits. For example:
 
@@ -64,7 +64,7 @@ token, err := NewAuth(issuer).Login(ctx, email, password)
 // Check token and err as usual.
 ```
 
-Variadic arguments are expanded: expect each Kafka message or structured log argument separately. Stateful Kafka consumer fakes remain for retry/cancellation scenarios; Postgres tests retain SQLMock.
+Variadic arguments are expanded: expect each Kafka message or structured log argument separately. Use ordered expectations for Kafka processing/commit retries and typed callbacks for blocking or cancellation scenarios. All handwritten dependency doubles have been replaced with generated mocks. Postgres tests retain SQLMock; configuration tests exercise real environment variables and temporary files.
 
 ```sh
 make test                         # go test -race ./...

@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/mock"
 	logadapter "http-api-template/internal/adapter/logger"
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/requestid"
+	portmocks "http-api-template/internal/mocks/port"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,28 +21,6 @@ const fixtureID = "550e8400-e29b-41d4-a716-446655440000"
 const providedID = "client-123"
 const privateValue = "private-sensitive-value"
 
-type fixtureIDs struct {
-	calls int
-	err   error
-}
-
-func (f *fixtureIDs) NewID() (string, error) {
-	f.calls++
-	return fixtureID, f.err
-}
-
-type fixtureVerifier struct {
-	calls int
-	token string
-	id    string
-	err   error
-}
-
-func (f *fixtureVerifier) Verify(ctx context.Context, token string) error {
-	f.calls++
-	f.token, f.id = token, requestid.ID(ctx)
-	return f.err
-}
 func TestRequestID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, tc := range []struct {
@@ -59,7 +39,10 @@ func TestRequestID(t *testing.T) {
 		{"duplicate", []string{providedID, providedID}, fixtureID, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ids := &fixtureIDs{}
+			ids := portmocks.NewMockIDGenerator(t)
+			if tc.generated != 0 {
+				ids.EXPECT().NewID().Return(fixtureID, nil).Once()
+			}
 			var logs bytes.Buffer
 			router := gin.New()
 			router.Use(RequestID(ids), AccessLog(logadapter.New(&logs, ids)))
@@ -76,8 +59,8 @@ func TestRequestID(t *testing.T) {
 			}
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, req)
-			if response.Code != http.StatusOK || response.Header().Get(RequestIDHeader) != tc.want || ids.calls != tc.generated {
-				t.Fatalf("status=%d ID=%q generated=%d", response.Code, response.Header().Get(RequestIDHeader), ids.calls)
+			if response.Code != http.StatusOK || response.Header().Get(RequestIDHeader) != tc.want {
+				t.Fatalf("status=%d ID=%q", response.Code, response.Header().Get(RequestIDHeader))
 			}
 			var record map[string]any
 			if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
@@ -106,9 +89,12 @@ func TestJWTMiddleware(t *testing.T) {
 		{"valid token", "Bearer test-token", nil, http.StatusNoContent, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			verifier := &fixtureVerifier{err: tc.err}
+			verifier := portmocks.NewMockTokenVerifier(t)
+			if tc.calls != 0 {
+				verifier.EXPECT().Verify(mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == providedID }), "test-token").Return(tc.err).Once()
+			}
 			router := gin.New()
-			router.Use(RequestID(&fixtureIDs{}), JWT(verifier))
+			router.Use(RequestID(portmocks.NewMockIDGenerator(t)), JWT(verifier))
 			called := false
 			router.POST("/write", func(ctx *gin.Context) {
 				called = true
@@ -119,18 +105,15 @@ func TestJWTMiddleware(t *testing.T) {
 			req.Header.Set("Authorization", tc.header)
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, req)
-			if response.Code != tc.want || verifier.calls != tc.calls || called != (tc.want == http.StatusNoContent) {
-				t.Fatalf("status=%d verifier calls=%d handler called=%v", response.Code, verifier.calls, called)
-			}
-			if tc.calls != 0 && (verifier.token != "test-token" || verifier.id != providedID) {
-				t.Fatal("verification lost the token or request context")
+			if response.Code != tc.want || called != (tc.want == http.StatusNoContent) {
+				t.Fatalf("status=%d handler called=%v", response.Code, called)
 			}
 		})
 	}
 }
 func TestRecovery(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	ids := &fixtureIDs{}
+	ids := portmocks.NewMockIDGenerator(t)
 	var output bytes.Buffer
 	log := logadapter.New(&output, ids)
 	router := gin.New()
@@ -156,7 +139,9 @@ func TestRecovery(t *testing.T) {
 }
 func TestRequestIDGenerationFailure(t *testing.T) {
 	router := gin.New()
-	router.Use(RequestID(&fixtureIDs{err: errors.New("entropy unavailable")}))
+	ids := portmocks.NewMockIDGenerator(t)
+	ids.EXPECT().NewID().Return("", errors.New("entropy unavailable")).Once()
+	router.Use(RequestID(ids))
 	router.GET("/test", func(_ *gin.Context) { t.Error("handler must not run") })
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/test", nil))

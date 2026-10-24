@@ -29,3 +29,10 @@ packages:
     interfaces:
       MessageReader:
       MessageWriter:
+  io:
+    config:
+      dir: cmd/pgurl
+      pkgname: main
+      filename: mock_writer_test.go
+    interfaces:
+      Writer:
