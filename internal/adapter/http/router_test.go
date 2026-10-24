@@ -306,7 +306,11 @@ func TestWriteErrors(t *testing.T) {
 					path, body = dummiesPath, createBody
 				}
 				response := f.request(method, path, body, true)
-				if response.Code != tc.want || response.Body.Len() != 0 {
+				want := tc.want
+				if method == http.MethodPost && errors.Is(tc.err, domain.ErrConflict) {
+					want = http.StatusConflict
+				}
+				if response.Code != want || response.Body.Len() != 0 {
 					t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 				}
 			})

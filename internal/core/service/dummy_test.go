@@ -118,7 +118,7 @@ func TestCreate(t *testing.T) {
 		{"publish failure", testName, testID, nil, errDependency, errDependency, 1, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			repo := &fakeRepository{}
+			repo := &fakeRepository{nameErr: domain.ErrNotFound}
 			publisher := &fakePublisher{err: tc.publishErr}
 			ids := &fakeIDs{id: tc.id, err: tc.idErr}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -127,7 +127,11 @@ func TestCreate(t *testing.T) {
 			if !errors.Is(err, tc.wantErr) || ids.calls != tc.wantIDCalls {
 				t.Fatalf("error=%v ID calls=%d", err, ids.calls)
 			}
-			if len(repo.calls) != 0 || (len(publisher.calls) != 0) != tc.wantPublished {
+			wantLookups := 1
+			if tc.wantErr == domain.ErrInvalid {
+				wantLookups = 0
+			}
+			if len(repo.calls) != wantLookups || (len(publisher.calls) != 0) != tc.wantPublished {
 				t.Fatalf("repository=%v publisher=%v", repo.calls, publisher.calls)
 			}
 			if err == nil && id != testID || err != nil && id != "" {
@@ -140,7 +144,7 @@ func TestCreate(t *testing.T) {
 	}
 	t.Run("malformed generated ID is an internal failure", func(t *testing.T) {
 		publisher := &fakePublisher{}
-		_, err := NewDummy(&fakeRepository{}, publisher, &fakeIDs{id: invalidID}).Create(context.Background(), testName, "")
+		_, err := NewDummy(&fakeRepository{nameErr: domain.ErrNotFound}, publisher, &fakeIDs{id: invalidID}).Create(context.Background(), testName, "")
 		if err == nil || errors.Is(err, domain.ErrInvalid) || len(publisher.calls) != 0 {
 			t.Fatalf("error=%v published=%v", err, publisher.calls)
 		}
@@ -220,6 +224,30 @@ func TestWriteCommands(t *testing.T) {
 			}
 			if !tc.remove && tc.wantCall != "" && !reflect.DeepEqual(publisher.patch, tc.patch) {
 				t.Fatal("patch was not preserved")
+			}
+		})
+	}
+}
+
+func TestCreateRejectsExistingNameAndLookupFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		lookupErr, wantErr error
+	}{
+		{"existing name", nil, domain.ErrConflict},
+		{"lookup failure", errDependency, errDependency},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeRepository{nameErr: tc.lookupErr}
+			publisher := &fakePublisher{}
+			ids := &fakeIDs{id: testID}
+			ctx := context.Background()
+			id, err := NewDummy(repo, publisher, ids).Create(ctx, testName, testNote)
+			if id != "" || !errors.Is(err, tc.wantErr) || ids.calls != 0 || len(publisher.calls) != 0 {
+				t.Fatalf("id=%q error=%v ID calls=%d publications=%v", id, err, ids.calls, publisher.calls)
+			}
+			if !reflect.DeepEqual(repo.calls, []string{nameCall}) || repo.ctx != ctx {
+				t.Fatalf("lookup calls=%v context=%v", repo.calls, repo.ctx)
 			}
 		})
 	}

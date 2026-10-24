@@ -8,8 +8,8 @@ paths:
         - BearerAuth: []
       description: |
         Returns after Kafka acknowledges publication. GET may initially return 404.
-        Names are case-sensitive and unique. A duplicate-name create is a successful
-        consumer no-op; the newly returned ID may never become readable.
+        Names are case-sensitive and unique. Returns 409 if the name already exists
+        in Postgres. Concurrent pending creates can still race before persistence.
       requestBody:
         required: true
         content:
@@ -27,6 +27,8 @@ paths:
           description: Invalid request; empty response body.
         '401':
           description: Missing or invalid bearer token; empty response body.
+        '409':
+          description: Name already exists; empty response body.
         '500':
           description: Publication or unexpected service failure; empty response body.
   DummyById:

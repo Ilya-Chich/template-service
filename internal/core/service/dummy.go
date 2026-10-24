@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/port"
@@ -22,6 +23,11 @@ func NewDummy(repository port.DummyRepository, publisher port.EventPublisher, id
 func (s *Dummy) Create(ctx context.Context, name, note string) (string, error) {
 	if err := domain.ValidateName(name); err != nil {
 		return "", err
+	}
+	if _, err := s.repository.GetByName(ctx, name); err == nil {
+		return "", domain.ErrConflict
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return "", fmt.Errorf("check dummy name: %w", err)
 	}
 	id, err := s.ids.NewID()
 	if err != nil {

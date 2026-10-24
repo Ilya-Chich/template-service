@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"http-api-template/internal/adapter/http/view"
@@ -44,6 +45,10 @@ func (h *handler) create(ctx *gin.Context) {
 		note = *req.Note
 	}
 	id, err := h.dummies.Create(ctx.Request.Context(), req.Name, note)
+	if errors.Is(err, domain.ErrConflict) {
+		ctx.Status(http.StatusConflict)
+		return
+	}
 	if err != nil {
 		h.fail(ctx, err, false)
 		return
