@@ -32,7 +32,7 @@ stop:
 	$(COMPOSE) stop
 
 docker-up:
-	$(COMPOSE) up --build
+	$(COMPOSE) up --build -d
 
 build:
 	$(COMPOSE) build
