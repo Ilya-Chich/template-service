@@ -4,20 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"testing"
+
+	"http-api-template/internal/core/domain"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"http-api-template/internal/core/domain"
-	"testing"
 )
 
-const dummyID = "550e8400-e29b-41d4-a716-446655440000"
-const dummyName = "Example"
-const readIDQuery = "SELECT .* FROM \"dummies\" WHERE id = \\$1"
-const updateQuery = "UPDATE \"dummies\" SET \"note\"=\\$1 WHERE id = \\$2"
-const deleteQuery = "DELETE FROM \"dummies\" WHERE id = \\$1"
+const (
+	dummyID     = "550e8400-e29b-41d4-a716-446655440000"
+	dummyName   = "Example"
+	readIDQuery = "SELECT .* FROM \"dummies\" WHERE id = \\$1"
+	updateQuery = "UPDATE \"dummies\" SET \"note\"=\\$1 WHERE id = \\$2"
+	deleteQuery = "DELETE FROM \"dummies\" WHERE id = \\$1"
+)
 
 var errDatabase = errors.New("database unavailable")
 
@@ -45,6 +49,7 @@ func repositoryForTest(t *testing.T) (*Dummy, sqlmock.Sqlmock) {
 	})
 	return NewDummy(db), mock
 }
+
 func TestRead(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -92,6 +97,7 @@ func TestRead(t *testing.T) {
 		})
 	}
 }
+
 func TestInsert(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -106,7 +112,8 @@ func TestInsert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo, mock := repositoryForTest(t)
 			mock.ExpectBegin()
-			expect := mock.ExpectExec("INSERT INTO \"dummies\" .* ON CONFLICT DO NOTHING").WithArgs(dummyID, dummyName, "")
+			expect := mock.ExpectExec("INSERT INTO \"dummies\" .* ON CONFLICT DO NOTHING").
+				WithArgs(dummyID, dummyName, "")
 			if tc.dbErr != nil {
 				expect.WillReturnError(tc.dbErr)
 				mock.ExpectRollback()
@@ -121,6 +128,7 @@ func TestInsert(t *testing.T) {
 		})
 	}
 }
+
 func TestMutations(t *testing.T) {
 	empty := ""
 	for _, tc := range []struct {
@@ -167,6 +175,7 @@ func TestMutations(t *testing.T) {
 		})
 	}
 }
+
 func TestUpdateFields(t *testing.T) {
 	repo, mock := repositoryForTest(t)
 	name, note := " Renamed ", ""
@@ -181,6 +190,7 @@ func TestUpdateFields(t *testing.T) {
 		t.Fatalf("empty patch error=%v", err)
 	}
 }
+
 func TestMapError(t *testing.T) {
 	unique := &pgconn.PgError{Code: "23505"}
 	for _, tc := range []struct {
@@ -210,6 +220,7 @@ func TestMapError(t *testing.T) {
 		t.Fatal("original driver error was not preserved")
 	}
 }
+
 func TestCanceledContext(t *testing.T) {
 	repo, _ := repositoryForTest(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -218,6 +229,7 @@ func TestCanceledContext(t *testing.T) {
 		t.Fatalf("error=%v", err)
 	}
 }
+
 func TestOpenCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

@@ -3,9 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/mail"
+
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/port"
-	"net/mail"
 )
 
 type Auth struct {
@@ -17,6 +18,7 @@ var _ port.AuthService = (*Auth)(nil)
 func NewAuth(issuer port.TokenIssuer) *Auth {
 	return &Auth{issuer: issuer}
 }
+
 func (s *Auth) Login(ctx context.Context, email, password string) (domain.Token, error) {
 	address, err := mail.ParseAddress(email)
 	if err != nil || address.Address != email || password == "" {

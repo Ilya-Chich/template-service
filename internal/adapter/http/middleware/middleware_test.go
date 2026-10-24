@@ -5,21 +5,25 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/mock"
-	logadapter "http-api-template/internal/adapter/logger"
-	"http-api-template/internal/core/domain"
-	"http-api-template/internal/core/requestid"
-	portmocks "http-api-template/internal/mocks/port"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	logadapter "http-api-template/internal/adapter/logger"
+	"http-api-template/internal/core/domain"
+	"http-api-template/internal/core/requestid"
+	portmocks "http-api-template/internal/mocks/port"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/mock"
 )
 
-const fixtureID = "550e8400-e29b-41d4-a716-446655440000"
-const providedID = "client-123"
-const privateValue = "private-sensitive-value"
+const (
+	fixtureID    = "550e8400-e29b-41d4-a716-446655440000"
+	providedID   = "client-123"
+	privateValue = "private-sensitive-value"
+)
 
 func TestRequestID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -47,7 +51,8 @@ func TestRequestID(t *testing.T) {
 			router := gin.New()
 			router.Use(RequestID(ids), AccessLog(logadapter.New(&logs, ids)))
 			router.GET("/test", func(ctx *gin.Context) {
-				if requestid.ID(ctx.Request.Context()) != tc.want || ctx.Writer.Header().Get(RequestIDHeader) != tc.want {
+				if requestid.ID(ctx.Request.Context()) != tc.want ||
+					ctx.Writer.Header().Get(RequestIDHeader) != tc.want {
 					t.Error("correlation was not set before the handler")
 				}
 				ctx.Status(http.StatusOK)
@@ -66,12 +71,14 @@ func TestRequestID(t *testing.T) {
 			if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
 				t.Fatal(err)
 			}
-			if record["request_id"] != tc.want || record["status"] != float64(http.StatusOK) || strings.Contains(logs.String(), privateValue) {
+			if record["request_id"] != tc.want || record["status"] != float64(http.StatusOK) ||
+				strings.Contains(logs.String(), privateValue) {
 				t.Fatal("request log correlation, status, or privacy failed")
 			}
 		})
 	}
 }
+
 func TestJWTMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, tc := range []struct {
@@ -91,7 +98,10 @@ func TestJWTMiddleware(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			verifier := portmocks.NewMockTokenVerifier(t)
 			if tc.calls != 0 {
-				verifier.EXPECT().Verify(mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == providedID }), "test-token").Return(tc.err).Once()
+				verifier.EXPECT().
+					Verify(mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == providedID }), "test-token").
+					Return(tc.err).
+					Once()
 			}
 			router := gin.New()
 			router.Use(RequestID(portmocks.NewMockIDGenerator(t)), JWT(verifier))
@@ -111,6 +121,7 @@ func TestJWTMiddleware(t *testing.T) {
 		})
 	}
 }
+
 func TestRecovery(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ids := portmocks.NewMockIDGenerator(t)
@@ -137,6 +148,7 @@ func TestRecovery(t *testing.T) {
 		}
 	}
 }
+
 func TestRequestIDGenerationFailure(t *testing.T) {
 	router := gin.New()
 	ids := portmocks.NewMockIDGenerator(t)

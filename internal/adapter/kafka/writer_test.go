@@ -3,11 +3,12 @@ package kafka
 import (
 	"context"
 	"errors"
+	"strings"
+	"testing"
+
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/requestid"
 	portmocks "http-api-template/internal/mocks/port"
-	"strings"
-	"testing"
 
 	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/mock"
@@ -57,10 +58,14 @@ func TestPublisher(t *testing.T) {
 		})
 	}
 }
+
 func TestPublisherFailures(t *testing.T) {
 	unavailable := errors.New("broker unavailable")
 	writer := NewMockMessageWriter(t)
-	writer.EXPECT().WriteMessages(mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == generatedID }), mock.Anything).Return(unavailable).Once()
+	writer.EXPECT().
+		WriteMessages(mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == generatedID }), mock.Anything).
+		Return(unavailable).
+		Once()
 	writer.EXPECT().Close().Return(unavailable).Once()
 	ids := portmocks.NewMockIDGenerator(t)
 	ids.EXPECT().NewID().Return(generatedID, nil).Once()
@@ -84,10 +89,14 @@ func TestPublisherFailures(t *testing.T) {
 	}
 	failedIDs := portmocks.NewMockIDGenerator(t)
 	failedIDs.EXPECT().NewID().Return("", unavailable).Once()
-	if err := NewPublisher(writer, logger, failedIDs).PublishDelete(context.Background(), testDummyID); !errors.Is(err, unavailable) {
+	if err := NewPublisher(writer, logger, failedIDs).PublishDelete(context.Background(), testDummyID); !errors.Is(
+		err,
+		unavailable,
+	) {
 		t.Fatal("correlation error was not returned")
 	}
 }
+
 func TestClientConfiguration(t *testing.T) {
 	writer, err := NewWriter([]string{testBroker}, "dummy-events")
 	if err != nil {

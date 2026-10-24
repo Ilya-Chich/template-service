@@ -3,10 +3,11 @@ package postgres
 import (
 	"context"
 	"errors"
+	"time"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"time"
 )
 
 func Open(ctx context.Context, dsn string) (*gorm.DB, error) {
@@ -29,6 +30,7 @@ func Open(ctx context.Context, dsn string) (*gorm.DB, error) {
 	}
 	return db, nil
 }
+
 func Close(db *gorm.DB) error {
 	sqlDB, err := db.DB()
 	if err != nil {

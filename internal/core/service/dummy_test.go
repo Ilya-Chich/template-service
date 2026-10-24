@@ -4,21 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/mock"
+	"testing"
+
 	"http-api-template/internal/core/domain"
 	portmocks "http-api-template/internal/mocks/port"
-	"testing"
+
+	"github.com/stretchr/testify/mock"
 )
 
-const updateCallPrefix = "update:"
-const deleteCallPrefix = "delete:"
-const testNote = "note"
-const getCallPrefix = "get:"
-const nameCall = "name:Example"
-const insertCall = "insert"
-const testName = "Example"
-const invalidID = "bad"
-const testID = "550e8400-e29b-41d4-a716-446655440000"
+const (
+	updateCallPrefix = "update:"
+	deleteCallPrefix = "delete:"
+	testNote         = "note"
+	getCallPrefix    = "get:"
+	nameCall         = "name:Example"
+	insertCall       = "insert"
+	testName         = "Example"
+	invalidID        = "bad"
+	testID           = "550e8400-e29b-41d4-a716-446655440000"
+)
 
 var errDependency = errors.New("dependency unavailable")
 
@@ -46,11 +50,20 @@ func TestCreate(t *testing.T) {
 			defer cancel()
 			var calls []*mock.Call
 			if tc.wantIDCalls != 0 {
-				calls = append(calls, repo.EXPECT().GetByName(ctx, tc.input).Return(domain.Dummy{}, domain.ErrNotFound).Once())
+				calls = append(
+					calls,
+					repo.EXPECT().GetByName(ctx, tc.input).Return(domain.Dummy{}, domain.ErrNotFound).Once(),
+				)
 				calls = append(calls, ids.EXPECT().NewID().Return(tc.id, tc.idErr).Once())
 			}
 			if tc.wantPublished {
-				calls = append(calls, publisher.EXPECT().PublishCreate(ctx, domain.Dummy{ID: testID, Name: tc.input, Note: testNote}).Return(tc.publishErr).Once())
+				calls = append(
+					calls,
+					publisher.EXPECT().
+						PublishCreate(ctx, domain.Dummy{ID: testID, Name: tc.input, Note: testNote}).
+						Return(tc.publishErr).
+						Once(),
+				)
 			}
 			mock.InOrder(calls...)
 			id, err := NewDummy(repo, publisher, ids).Create(ctx, tc.input, testNote)
@@ -77,6 +90,7 @@ func TestCreate(t *testing.T) {
 		}
 	})
 }
+
 func TestGet(t *testing.T) {
 	dummy := domain.Dummy{ID: testID, Name: testName, Note: testNote}
 	for _, tc := range []struct {
@@ -105,6 +119,7 @@ func TestGet(t *testing.T) {
 		})
 	}
 }
+
 func TestWriteCommands(t *testing.T) {
 	empty := ""
 	blank := " "

@@ -1,8 +1,9 @@
 package jtypes
 
 import (
-	"http-api-template/pkg/bytesconv"
 	"time"
+
+	"http-api-template/pkg/bytesconv"
 )
 
 const iso8601Layout = "2006-01-02T15:04:05+07:00"

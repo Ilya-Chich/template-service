@@ -7,16 +7,18 @@ import (
 	"testing"
 )
 
-const postgresPortKey = "POSTGRES_PORT"
-const trueValue = "true"
-const sslKeyPathKey = "SSL_KEY_PATH"
-const dotenvPath = ".env.dev"
-const postgresDBKey = "POSTGRES_DB"
-const jwtSecretKey = "JWT_SECRET"
-const falseValue = "false"
-const developmentValue = "development"
-const httpPortKey = "HTTP_PORT"
-const debugKey = "DEBUG"
+const (
+	postgresPortKey  = "POSTGRES_PORT"
+	trueValue        = "true"
+	sslKeyPathKey    = "SSL_KEY_PATH"
+	dotenvPath       = ".env.dev"
+	postgresDBKey    = "POSTGRES_DB"
+	jwtSecretKey     = "JWT_SECRET"
+	falseValue       = "false"
+	developmentValue = "development"
+	httpPortKey      = "HTTP_PORT"
+	debugKey         = "DEBUG"
+)
 
 func validValues() map[string]string {
 	return map[string]string{
@@ -26,6 +28,7 @@ func validValues() map[string]string {
 		debugKey: trueValue,
 	}
 }
+
 func TestRequiredValues(t *testing.T) {
 	for key := range validValues() {
 		if key == debugKey {
@@ -41,6 +44,7 @@ func TestRequiredValues(t *testing.T) {
 		})
 	}
 }
+
 func TestParse(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -87,13 +91,15 @@ func TestParse(t *testing.T) {
 		})
 	}
 }
+
 func TestTLSAndGroup(t *testing.T) {
 	values := validValues()
 	delete(values, debugKey)
 	values["SSL_CERT_PATH"], values[sslKeyPathKey] = "example.crt", "example.key"
 	values["KAFKA_GROUP_ID"] = "custom-group"
 	cfg, err := parse(values)
-	if err != nil || cfg.Debug || cfg.KafkaGroupID != "custom-group" || cfg.SSLCertPath != "example.crt" || cfg.SSLKeyPath != "example.key" {
+	if err != nil || cfg.Debug || cfg.KafkaGroupID != "custom-group" || cfg.SSLCertPath != "example.crt" ||
+		cfg.SSLKeyPath != "example.key" {
 		t.Fatalf("invalid TLS/group configuration: %v", err)
 	}
 	delete(values, sslKeyPathKey)
@@ -101,6 +107,7 @@ func TestTLSAndGroup(t *testing.T) {
 		t.Fatalf("expected missing TLS key, got %v", err)
 	}
 }
+
 func setEnvironment(t *testing.T) {
 	t.Helper()
 	t.Setenv("ENV_FILE", "")
@@ -111,6 +118,7 @@ func setEnvironment(t *testing.T) {
 	t.Setenv("SSL_CERT_PATH", "")
 	t.Setenv(sslKeyPathKey, "")
 }
+
 func TestLoad(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -125,7 +133,7 @@ func TestLoad(t *testing.T) {
 			t.Chdir(t.TempDir())
 			setEnvironment(t)
 			if tc.file != "" {
-				if err := os.WriteFile(dotenvPath, []byte(tc.file), 0600); err != nil {
+				if err := os.WriteFile(dotenvPath, []byte(tc.file), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -136,7 +144,8 @@ func TestLoad(t *testing.T) {
 			if err != nil && strings.Contains(err.Error(), "file-secret") {
 				t.Fatal("dotenv error leaked a value")
 			}
-			if err == nil && (cfg.HTTPPort != 8081 || cfg.JWTSecret != "test-secret" || cfg.KafkaTopic != "dummy-events") {
+			if err == nil &&
+				(cfg.HTTPPort != 8081 || cfg.JWTSecret != "test-secret" || cfg.KafkaTopic != "dummy-events") {
 				t.Fatal("environment values were not preserved")
 			}
 			if os.Getenv(httpPortKey) != "8081" {
@@ -145,13 +154,14 @@ func TestLoad(t *testing.T) {
 		})
 	}
 }
+
 func TestDotenvFallback(t *testing.T) {
 	t.Chdir(t.TempDir())
 	setEnvironment(t)
 	if err := os.Unsetenv(httpPortKey); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dotenvPath, []byte("HTTP_PORT=9090\n"), 0600); err != nil {
+	if err := os.WriteFile(dotenvPath, []byte("HTTP_PORT=9090\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load()
@@ -162,10 +172,11 @@ func TestDotenvFallback(t *testing.T) {
 		t.Fatal("Load mutated the environment")
 	}
 }
+
 func TestUnreadableDotenv(t *testing.T) {
 	t.Chdir(t.TempDir())
 	setEnvironment(t)
-	if err := os.Mkdir(filepath.Join(".", dotenvPath), 0700); err != nil {
+	if err := os.Mkdir(filepath.Join(".", dotenvPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Load(); err == nil {
@@ -210,7 +221,7 @@ func TestEnvironmentSelection(t *testing.T) {
 				".env.prod": "POSTGRES_DB=production\nJWT_SECRET=production-secret\nDEBUG=false\n",
 				".env":      "POSTGRES_DB=legacy\nJWT_SECRET=legacy-secret\n",
 			} {
-				if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+				if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			}

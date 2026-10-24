@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/mock"
+	"testing"
+
 	"http-api-template/internal/core/domain"
 	portmocks "http-api-template/internal/mocks/port"
-	"testing"
+
+	"github.com/stretchr/testify/mock"
 )
 
 func TestProcessCreate(t *testing.T) {
@@ -42,7 +44,10 @@ func TestProcessCreate(t *testing.T) {
 				case getCallPrefix + testID:
 					calls = append(calls, repo.EXPECT().Get(ctx, tc.dummy.ID).Return(domain.Dummy{}, tc.getErr).Once())
 				case nameCall:
-					calls = append(calls, repo.EXPECT().GetByName(ctx, tc.dummy.Name).Return(domain.Dummy{}, tc.nameErr).Once())
+					calls = append(
+						calls,
+						repo.EXPECT().GetByName(ctx, tc.dummy.Name).Return(domain.Dummy{}, tc.nameErr).Once(),
+					)
 				case insertCall:
 					calls = append(calls, repo.EXPECT().Insert(ctx, tc.dummy).Return(tc.insertErr).Once())
 				default:
@@ -56,6 +61,7 @@ func TestProcessCreate(t *testing.T) {
 		})
 	}
 }
+
 func TestProcessCreateReplay(t *testing.T) {
 	repo := portmocks.NewMockDummyRepository(t)
 	svc := NewDummy(repo, portmocks.NewMockEventPublisher(t), portmocks.NewMockIDGenerator(t))
@@ -73,6 +79,7 @@ func TestProcessCreateReplay(t *testing.T) {
 		}
 	}
 }
+
 func TestProcessMutations(t *testing.T) {
 	empty := ""
 	blank := " "

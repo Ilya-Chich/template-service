@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/segmentio/kafka-go"
+	"strings"
+
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/port"
-	"strings"
+
+	"github.com/segmentio/kafka-go"
 )
 
 type MessageWriter interface {
@@ -36,12 +38,15 @@ func NewWriter(brokers []string, topic string) (*kafka.Writer, error) {
 		Balancer: &kafka.Hash{}, RequiredAcks: kafka.RequireAll, Async: false,
 	}, nil
 }
+
 func NewPublisher(writer MessageWriter, logger port.Logger, ids port.IDGenerator) *Publisher {
 	return &Publisher{writer: writer, logger: logger, ids: ids}
 }
+
 func (p *Publisher) Close() error {
 	return p.writer.Close()
 }
+
 func (p *Publisher) PublishCreate(ctx context.Context, dummy domain.Dummy) error {
 	if err := dummy.Validate(); err != nil {
 		return err
@@ -53,6 +58,7 @@ func (p *Publisher) PublishCreate(ctx context.Context, dummy domain.Dummy) error
 	}
 	return p.publish(ctx, envelope{EventType: eventCreate, DummyID: dummy.ID, Dummy: payload})
 }
+
 func (p *Publisher) PublishUpdate(ctx context.Context, id string, patch domain.Patch) error {
 	if err := domain.ValidateID(id); err != nil {
 		return err
@@ -66,12 +72,14 @@ func (p *Publisher) PublishUpdate(ctx context.Context, id string, patch domain.P
 	}
 	return p.publish(ctx, envelope{EventType: eventUpdate, DummyID: strings.ToLower(id), Patch: payload})
 }
+
 func (p *Publisher) PublishDelete(ctx context.Context, id string) error {
 	if err := domain.ValidateID(id); err != nil {
 		return err
 	}
 	return p.publish(ctx, envelope{EventType: eventDelete, DummyID: strings.ToLower(id)})
 }
+
 func (p *Publisher) publish(ctx context.Context, wire envelope) error {
 	data, err := json.Marshal(wire)
 	if err != nil {

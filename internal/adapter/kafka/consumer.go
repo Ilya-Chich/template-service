@@ -3,10 +3,12 @@ package kafka
 import (
 	"context"
 	"errors"
-	"github.com/segmentio/kafka-go"
+	"time"
+
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/port"
-	"time"
+
+	"github.com/segmentio/kafka-go"
 )
 
 const (
@@ -34,6 +36,7 @@ func NewReader(brokers []string, topic, group string) (*kafka.Reader, error) {
 	}
 	return kafka.NewReader(cfg), nil
 }
+
 func readerConfig(brokers []string, topic, group string) (kafka.ReaderConfig, error) {
 	if group == "" {
 		return kafka.ReaderConfig{}, errors.New("kafka consumer group is required")
@@ -47,9 +50,16 @@ func readerConfig(brokers []string, topic, group string) (kafka.ReaderConfig, er
 	}
 	return cfg, nil
 }
-func NewConsumer(reader MessageReader, processor port.DummyProcessor, logger port.Logger, ids port.IDGenerator) *Consumer {
+
+func NewConsumer(
+	reader MessageReader,
+	processor port.DummyProcessor,
+	logger port.Logger,
+	ids port.IDGenerator,
+) *Consumer {
 	return &Consumer{reader: reader, processor: processor, logger: logger, ids: ids, wait: waitBackoff}
 }
+
 func (c *Consumer) Run(ctx context.Context) (err error) {
 	defer func() { err = errors.Join(err, c.reader.Close()) }()
 	for {
@@ -89,6 +99,7 @@ func (c *Consumer) Run(ctx context.Context) (err error) {
 		}
 	}
 }
+
 func (c *Consumer) process(ctx context.Context, decoded event) error {
 	switch decoded.kind {
 	case eventCreate:
@@ -99,6 +110,7 @@ func (c *Consumer) process(ctx context.Context, decoded event) error {
 		return c.processor.ProcessDelete(ctx, decoded.id)
 	}
 }
+
 func (c *Consumer) retry(ctx context.Context, operation func() error, message string) error {
 	delay := initialBackoff
 	for {
@@ -118,6 +130,7 @@ func (c *Consumer) retry(ctx context.Context, operation func() error, message st
 		delay = min(delay*2, maxBackoff)
 	}
 }
+
 func waitBackoff(ctx context.Context, delay time.Duration) error {
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
@@ -128,6 +141,7 @@ func waitBackoff(ctx context.Context, delay time.Duration) error {
 		return nil
 	}
 }
+
 func cancellationResult(ctx context.Context, err error) error {
 	if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 		return nil

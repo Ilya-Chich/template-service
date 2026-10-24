@@ -7,12 +7,13 @@ import (
 	"io"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"http-api-template/config"
 	logadapter "http-api-template/internal/adapter/logger"
 	"http-api-template/internal/adapter/uuid"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func TestExpectedStartupCancellation(t *testing.T) {
@@ -81,8 +82,14 @@ func TestStartupFailureClosesDatabaseAndReportsCleanupError(t *testing.T) {
 			}
 			closeErr := errors.New("database close failed")
 			mock.ExpectClose().WillReturnError(closeErr)
-			cfg := config.Config{KafkaBroker: "localhost:9092", KafkaTopic: "dummy-events", KafkaGroupID: "test", HTTPPort: 0,
-				SSLCertPath: "missing-test-certificate", SSLKeyPath: "missing-test-key"}
+			cfg := config.Config{
+				KafkaBroker:  "localhost:9092",
+				KafkaTopic:   "dummy-events",
+				KafkaGroupID: "test",
+				HTTPPort:     0,
+				SSLCertPath:  "missing-test-certificate",
+				SSLKeyPath:   "missing-test-key",
+			}
 			switch stage {
 			case "writer":
 				cfg.KafkaTopic = ""

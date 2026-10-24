@@ -3,14 +3,18 @@ package auth
 import (
 	"context"
 	"errors"
-	"github.com/golang-jwt/jwt/v4"
-	"http-api-template/internal/core/domain"
 	"testing"
 	"time"
+
+	"http-api-template/internal/core/domain"
+
+	"github.com/golang-jwt/jwt/v4"
 )
 
-const testSecret = "unit-test-signing-key"
-const testEmail = "user@example.com"
+const (
+	testSecret = "unit-test-signing-key"
+	testEmail  = "user@example.com"
+)
 
 func testJWT(t *testing.T) *JWT {
 	t.Helper()
@@ -21,6 +25,7 @@ func testJWT(t *testing.T) *JWT {
 	adapter.now = func() time.Time { return time.Unix(1800000000, 0) }
 	return adapter
 }
+
 func signedToken(t *testing.T, method jwt.SigningMethod, payload jwt.Claims, key any) string {
 	t.Helper()
 	encoded, err := jwt.NewWithClaims(method, payload).SignedString(key)
@@ -29,6 +34,7 @@ func signedToken(t *testing.T, method jwt.SigningMethod, payload jwt.Claims, key
 	}
 	return encoded
 }
+
 func TestIssue(t *testing.T) {
 	adapter := testJWT(t)
 	token, err := adapter.Issue(context.Background(), testEmail)
@@ -40,11 +46,17 @@ func TestIssue(t *testing.T) {
 	}
 	payload := &claims{}
 	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
-	parsed, err := parser.ParseWithClaims(token.AccessToken, payload, func(_ *jwt.Token) (any, error) { return []byte(testSecret), nil })
+	parsed, err := parser.ParseWithClaims(
+		token.AccessToken,
+		payload,
+		func(_ *jwt.Token) (any, error) { return []byte(testSecret), nil },
+	)
 	if err != nil || !parsed.Valid || parsed.Method != jwt.SigningMethodHS256 {
 		t.Fatalf("invalid signature or algorithm: %v", err)
 	}
-	if payload.UserID != "1" || payload.Email != testEmail || payload.ExpiresAt == nil || payload.IssuedAt == nil || payload.ExpiresAt.Unix() != adapter.now().Add(time.Hour).Unix() || payload.IssuedAt.Unix() != adapter.now().Unix() {
+	if payload.UserID != "1" || payload.Email != testEmail || payload.ExpiresAt == nil || payload.IssuedAt == nil ||
+		payload.ExpiresAt.Unix() != adapter.now().Add(time.Hour).Unix() ||
+		payload.IssuedAt.Unix() != adapter.now().Unix() {
 		t.Fatal("stub claims or expiry were not preserved")
 	}
 	if err := adapter.Verify(context.Background(), token.AccessToken); err != nil {
@@ -56,6 +68,7 @@ func TestIssue(t *testing.T) {
 		t.Fatalf("expired token error=%v", err)
 	}
 }
+
 func TestRejectTokens(t *testing.T) {
 	adapter := testJWT(t)
 	valid := jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(adapter.now().Add(time.Hour))}
@@ -79,6 +92,7 @@ func TestRejectTokens(t *testing.T) {
 		})
 	}
 }
+
 func TestJWTConfigurationAndCancellation(t *testing.T) {
 	if _, err := NewJWT(" "); err == nil {
 		t.Fatal("empty signing key must be rejected")

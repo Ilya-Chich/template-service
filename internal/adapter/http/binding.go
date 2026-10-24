@@ -3,11 +3,13 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/gin-gonic/gin"
-	"http-api-template/internal/core/domain"
 	"io"
 	"net/http"
+
+	"http-api-template/internal/core/domain"
+
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/gin-gonic/gin"
 )
 
 func decodeBody(ctx *gin.Context, target any, schema *openapi3.Schema) bool {
@@ -36,6 +38,7 @@ func decodeBody(ctx *gin.Context, target any, schema *openapi3.Schema) bool {
 	}
 	return true
 }
+
 func (h *handler) fail(ctx *gin.Context, err error, allowNotFound bool) {
 	switch {
 	case errors.Is(err, domain.ErrInvalid):
@@ -49,6 +52,7 @@ func (h *handler) fail(ctx *gin.Context, err error, allowNotFound bool) {
 		ctx.Status(http.StatusInternalServerError)
 	}
 }
+
 func (h *handler) invalidResponse(ctx *gin.Context) {
 	h.logger.Error(ctx.Request.Context(), "HTTP service returned invalid response data")
 	ctx.Status(http.StatusInternalServerError)

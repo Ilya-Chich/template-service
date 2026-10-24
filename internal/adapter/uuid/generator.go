@@ -1,8 +1,9 @@
 package uuid
 
 import (
-	"github.com/google/uuid"
 	"http-api-template/internal/core/port"
+
+	"github.com/google/uuid"
 )
 
 type Generator struct{}

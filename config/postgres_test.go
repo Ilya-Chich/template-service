@@ -21,7 +21,9 @@ func TestPostgresURL(t *testing.T) {
 		t.Fatal("invalid generated URL")
 	}
 	password, _ := parsed.User.Password()
-	if parsed.Host != "[::1]:5432" || parsed.User.Username() != values["POSTGRES_USER"] || password != values["POSTGRES_PASSWORD"] || parsed.Query().Get("sslmode") != "disable" {
+	if parsed.Host != "[::1]:5432" || parsed.User.Username() != values["POSTGRES_USER"] ||
+		password != values["POSTGRES_PASSWORD"] ||
+		parsed.Query().Get("sslmode") != "disable" {
 		t.Fatal("Postgres URL did not preserve connection settings")
 	}
 	values["POSTGRES_SSLMODE"] = "verify-full"
@@ -30,6 +32,7 @@ func TestPostgresURL(t *testing.T) {
 		t.Fatal("SSL mode was not preserved")
 	}
 }
+
 func TestPostgresURLValidation(t *testing.T) {
 	for _, key := range []string{"POSTGRES_HOST", postgresPortKey, "POSTGRES_USER", "POSTGRES_PASSWORD", postgresDBKey} {
 		t.Run(key, func(t *testing.T) {
@@ -50,6 +53,7 @@ func TestPostgresURLValidation(t *testing.T) {
 		})
 	}
 }
+
 func TestMigrationConfig(t *testing.T) {
 	t.Chdir(t.TempDir())
 	for key, value := range validValues() {
@@ -77,6 +81,7 @@ func TestMigrationConfig(t *testing.T) {
 		t.Fatal("application connection must not use the migration-only override")
 	}
 }
+
 func TestMigrationDotenv(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("ENV_FILE", dotenvPath)
@@ -84,13 +89,13 @@ func TestMigrationDotenv(t *testing.T) {
 	if err := os.Unsetenv("POSTGRES_URL"); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dotenvPath, []byte("POSTGRES_URL=postgres://example/db\n"), 0600); err != nil {
+	if err := os.WriteFile(dotenvPath, []byte("POSTGRES_URL=postgres://example/db\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := LoadMigrationURL(); err != nil || got != "postgres://example/db" {
 		t.Fatal("dotenv migration override was not loaded")
 	}
-	if err := os.WriteFile(dotenvPath, []byte("POSTGRES_PASSWORD='private-value\n"), 0600); err != nil {
+	if err := os.WriteFile(dotenvPath, []byte("POSTGRES_PASSWORD='private-value\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := LoadMigrationURL(); err == nil || strings.Contains(err.Error(), "private-value") {

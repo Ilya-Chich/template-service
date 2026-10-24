@@ -1,10 +1,11 @@
 package http
 
 import (
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/gin-gonic/gin"
 	"http-api-template/internal/adapter/http/middleware"
 	"http-api-template/internal/core/port"
+
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/gin-gonic/gin"
 )
 
 type handler struct {
@@ -16,7 +17,13 @@ type handler struct {
 	loginSchema  *openapi3.Schema
 }
 
-func NewRouter(dummies port.DummyService, auth port.AuthService, verifier port.TokenVerifier, logger port.Logger, ids port.IDGenerator) (*gin.Engine, error) {
+func NewRouter(
+	dummies port.DummyService,
+	auth port.AuthService,
+	verifier port.TokenVerifier,
+	logger port.Logger,
+	ids port.IDGenerator,
+) (*gin.Engine, error) {
 	spec, err := GetSwagger()
 	if err != nil {
 		return nil, err

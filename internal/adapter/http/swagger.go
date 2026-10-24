@@ -1,9 +1,10 @@
 package http
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/swaggest/swgui/v4cdn"
-	"net/http"
 )
 
 func RegisterSwagger(router gin.IRouter) error {

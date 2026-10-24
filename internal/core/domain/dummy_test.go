@@ -29,6 +29,7 @@ func TestValidateID(t *testing.T) {
 		})
 	}
 }
+
 func TestValidateName(t *testing.T) {
 	for _, name := range []string{"", " ", "\t\n", "\u2003"} {
 		if err := ValidateName(name); !errors.Is(err, ErrInvalid) {
@@ -41,6 +42,7 @@ func TestValidateName(t *testing.T) {
 		}
 	}
 }
+
 func TestPatchValidation(t *testing.T) {
 	name, empty := "Example", ""
 	for _, tc := range []struct {

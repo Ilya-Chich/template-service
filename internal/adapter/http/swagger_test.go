@@ -3,10 +3,11 @@ package http
 import (
 	"context"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestSwaggerContract(t *testing.T) {
@@ -35,11 +36,14 @@ func TestSwaggerContract(t *testing.T) {
 		if operation == "delete" {
 			op = remove
 		}
-		if op.Responses["202"] == nil || op.Responses["401"] == nil || op.Responses["404"] != nil || op.Security == nil {
+		if op.Responses["202"] == nil || op.Responses["401"] == nil || op.Responses["404"] != nil ||
+			op.Security == nil {
 			t.Fatalf("invalid asynchronous write contract: %s", operation)
 		}
 	}
-	if create.Responses["409"] == nil || len(create.Responses["409"].Value.Content) != 0 || patch.Responses["409"] != nil || remove.Responses["409"] != nil {
+	if create.Responses["409"] == nil || len(create.Responses["409"].Value.Content) != 0 ||
+		patch.Responses["409"] != nil ||
+		remove.Responses["409"] != nil {
 		t.Fatal("only create must document an empty duplicate-name conflict response")
 	}
 	if len(patch.Responses["202"].Value.Content) != 0 || len(remove.Responses["202"].Value.Content) != 0 {
@@ -78,6 +82,7 @@ func TestSwaggerContract(t *testing.T) {
 		})
 	}
 }
+
 func TestSwaggerRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

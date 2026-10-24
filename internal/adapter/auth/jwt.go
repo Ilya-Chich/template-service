@@ -3,11 +3,13 @@ package auth
 import (
 	"context"
 	"errors"
-	"github.com/golang-jwt/jwt/v4"
-	"http-api-template/internal/core/domain"
-	"http-api-template/internal/core/port"
 	"strings"
 	"time"
+
+	"http-api-template/internal/core/domain"
+	"http-api-template/internal/core/port"
+
+	"github.com/golang-jwt/jwt/v4"
 )
 
 type claims struct {
@@ -20,8 +22,10 @@ type JWT struct {
 	now func() time.Time
 }
 
-var _ port.TokenIssuer = (*JWT)(nil)
-var _ port.TokenVerifier = (*JWT)(nil)
+var (
+	_ port.TokenIssuer   = (*JWT)(nil)
+	_ port.TokenVerifier = (*JWT)(nil)
+)
 
 func NewJWT(secret string) (*JWT, error) {
 	if strings.TrimSpace(secret) == "" {
@@ -29,14 +33,18 @@ func NewJWT(secret string) (*JWT, error) {
 	}
 	return &JWT{key: []byte(secret), now: time.Now}, nil
 }
+
 func (a *JWT) Issue(ctx context.Context, email string) (domain.Token, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Token{}, err
 	}
 	now := a.now()
 	payload := claims{
-		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)), IssuedAt: jwt.NewNumericDate(now)},
-		UserID:           "1", Email: email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(now),
+		},
+		UserID: "1", Email: email,
 	}
 	encoded, err := jwt.NewWithClaims(jwt.SigningMethodHS256, payload).SignedString(a.key)
 	if err != nil {
@@ -44,6 +52,7 @@ func (a *JWT) Issue(ctx context.Context, email string) (domain.Token, error) {
 	}
 	return domain.Token{AccessToken: encoded, TokenType: "Bearer", ExpiresIn: 3600}, nil
 }
+
 func (a *JWT) Verify(ctx context.Context, encoded string) error {
 	if err := ctx.Err(); err != nil {
 		return err

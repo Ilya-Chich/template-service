@@ -3,6 +3,7 @@ package requestid
 import (
 	"context"
 	"errors"
+
 	"http-api-template/internal/core/port"
 )
 
@@ -13,20 +14,24 @@ func Valid(id string) bool {
 		return false
 	}
 	for _, ch := range []byte(id) {
-		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '.' || ch == '_' || ch == '-' {
+		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '.' || ch == '_' ||
+			ch == '-' {
 			continue
 		}
 		return false
 	}
 	return true
 }
+
 func WithID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, contextKey{}, id)
 }
+
 func ID(ctx context.Context) string {
 	id, _ := ctx.Value(contextKey{}).(string)
 	return id
 }
+
 func Ensure(ctx context.Context, ids port.IDGenerator) (context.Context, error) {
 	if Valid(ID(ctx)) {
 		return ctx, nil

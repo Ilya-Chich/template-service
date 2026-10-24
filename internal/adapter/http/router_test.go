@@ -6,34 +6,38 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/mock"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
 	authadapter "http-api-template/internal/adapter/auth"
 	"http-api-template/internal/adapter/http/middleware"
 	logadapter "http-api-template/internal/adapter/logger"
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/requestid"
 	portmocks "http-api-template/internal/mocks/port"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/mock"
 )
 
-const fixtureDocsPath = "/api/v1/docs.json"
-const operationPatch = "patch"
-const operationDelete = "delete"
-const nullNameBody = `{"name":null}`
-const createBody = `{"name":"Example"}`
-const clearNoteBody = `{"note":""}`
-const loginBody = `{"email":"user@example.com","password":"test-password"}`
-const fixtureDummyID = "550e8400-e29b-41d4-a716-446655440000"
-const fixtureDummyName = "Example"
-const dummiesPath = "/api/v1/dummies"
-const dummyPath = dummiesPath + "/" + fixtureDummyID
-const loginPath = "/api/v1/auth/login"
-const fixtureRequestID = "http-test-request"
-const fixtureEmail = "user@example.com"
+const (
+	fixtureDocsPath  = "/api/v1/docs.json"
+	operationPatch   = "patch"
+	operationDelete  = "delete"
+	nullNameBody     = `{"name":null}`
+	createBody       = `{"name":"Example"}`
+	clearNoteBody    = `{"note":""}`
+	loginBody        = `{"email":"user@example.com","password":"test-password"}`
+	fixtureDummyID   = "550e8400-e29b-41d4-a716-446655440000"
+	fixtureDummyName = "Example"
+	dummiesPath      = "/api/v1/dummies"
+	dummyPath        = dummiesPath + "/" + fixtureDummyID
+	loginPath        = "/api/v1/auth/login"
+	fixtureRequestID = "http-test-request"
+	fixtureEmail     = "user@example.com"
+)
 
 type httpFixture struct {
 	router  *gin.Engine
@@ -57,12 +61,19 @@ func newHTTPFixture(t *testing.T) *httpFixture {
 	dummies := portmocks.NewMockDummyService(t)
 	auth := portmocks.NewMockAuthService(t)
 	logs := &bytes.Buffer{}
-	router, err := NewRouter(dummies, auth, tokens, logadapter.New(logs, portmocks.NewMockIDGenerator(t)), portmocks.NewMockIDGenerator(t))
+	router, err := NewRouter(
+		dummies,
+		auth,
+		tokens,
+		logadapter.New(logs, portmocks.NewMockIDGenerator(t)),
+		portmocks.NewMockIDGenerator(t),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return &httpFixture{router: router, dummies: dummies, auth: auth, token: token.AccessToken, logs: logs}
 }
+
 func (f *httpFixture) request(method, path, body string, protected bool) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -74,6 +85,7 @@ func (f *httpFixture) request(method, path, body string, protected bool) *httpte
 	f.router.ServeHTTP(response, req)
 	return response
 }
+
 func TestHealthAndDocumentation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ids := portmocks.NewMockIDGenerator(t)
@@ -89,7 +101,8 @@ func TestHealthAndDocumentation(t *testing.T) {
 			if response.Code != http.StatusOK || response.Header().Get(middleware.RequestIDHeader) == "" {
 				t.Fatalf("status=%d", response.Code)
 			}
-			if strings.HasPrefix(path, "/api/v1/health") && (response.Body.String() != `{"status":200}` || !strings.Contains(response.Header().Get("Content-Type"), "application/json")) {
+			if strings.HasPrefix(path, "/api/v1/health") &&
+				(response.Body.String() != `{"status":200}` || !strings.Contains(response.Header().Get("Content-Type"), "application/json")) {
 				t.Fatal("health must always return JSON without consulting services")
 			}
 		})
@@ -100,6 +113,7 @@ func TestHealthAndDocumentation(t *testing.T) {
 		}
 	}
 }
+
 func TestGetDummy(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -114,7 +128,10 @@ func TestGetDummy(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newHTTPFixture(t)
-			f.dummies.EXPECT().Get(httpRequestContext(), fixtureDummyID).Return(domain.Dummy{ID: fixtureDummyID, Name: fixtureDummyName}, tc.err).Once()
+			f.dummies.EXPECT().
+				Get(httpRequestContext(), fixtureDummyID).
+				Return(domain.Dummy{ID: fixtureDummyID, Name: fixtureDummyName}, tc.err).
+				Once()
 			response := f.request(http.MethodGet, dummyPath, "", false)
 			if response.Code != tc.want {
 				t.Fatalf("status=%d", response.Code)
@@ -124,7 +141,8 @@ func TestGetDummy(t *testing.T) {
 				if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil {
 					t.Fatal(err)
 				}
-				if len(value) != 3 || value["id"] != fixtureDummyID || value["name"] != fixtureDummyName || value["note"] != "" {
+				if len(value) != 3 || value["id"] != fixtureDummyID || value["name"] != fixtureDummyName ||
+					value["note"] != "" {
 					t.Fatalf("body=%s", response.Body.String())
 				}
 			} else if response.Body.Len() != 0 {
@@ -136,6 +154,7 @@ func TestGetDummy(t *testing.T) {
 		})
 	}
 }
+
 func TestAcceptedWrites(t *testing.T) {
 	for _, tc := range []struct {
 		method    string
@@ -154,7 +173,10 @@ func TestAcceptedWrites(t *testing.T) {
 			case http.MethodPost:
 				f.dummies.EXPECT().Create(httpRequestContext(), " Example ", "note").Return(fixtureDummyID, nil).Once()
 			case http.MethodPatch:
-				f.dummies.EXPECT().Patch(httpRequestContext(), fixtureDummyID, domain.Patch{Note: &empty}).Return(nil).Once()
+				f.dummies.EXPECT().
+					Patch(httpRequestContext(), fixtureDummyID, domain.Patch{Note: &empty}).
+					Return(nil).
+					Once()
 			case http.MethodDelete:
 				f.dummies.EXPECT().Delete(httpRequestContext(), fixtureDummyID).Return(nil).Once()
 			}
@@ -199,6 +221,7 @@ func TestAcceptedWrites(t *testing.T) {
 		}
 	})
 }
+
 func TestInvalidRequestsDoNotCallService(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -234,6 +257,7 @@ func TestInvalidRequestsDoNotCallService(t *testing.T) {
 		})
 	}
 }
+
 func TestWriteErrors(t *testing.T) {
 	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
 		for _, tc := range []struct {
@@ -254,7 +278,10 @@ func TestWriteErrors(t *testing.T) {
 				case http.MethodPost:
 					f.dummies.EXPECT().Create(httpRequestContext(), fixtureDummyName, "").Return("", tc.err).Once()
 				case http.MethodPatch:
-					f.dummies.EXPECT().Patch(httpRequestContext(), fixtureDummyID, domain.Patch{Note: &empty}).Return(tc.err).Once()
+					f.dummies.EXPECT().
+						Patch(httpRequestContext(), fixtureDummyID, domain.Patch{Note: &empty}).
+						Return(tc.err).
+						Once()
 				case http.MethodDelete:
 					f.dummies.EXPECT().Delete(httpRequestContext(), fixtureDummyID).Return(tc.err).Once()
 				}
@@ -274,6 +301,7 @@ func TestWriteErrors(t *testing.T) {
 		}
 	}
 }
+
 func TestProtectedWrites(t *testing.T) {
 	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
 		for _, invalidToken := range []bool{false, true} {
@@ -294,6 +322,7 @@ func TestProtectedWrites(t *testing.T) {
 		}
 	}
 }
+
 func TestLogin(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -313,7 +342,10 @@ func TestLogin(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newHTTPFixture(t)
 			if tc.calls != 0 {
-				f.auth.EXPECT().Login(httpRequestContext(), fixtureEmail, "test-password").Return(domain.Token{AccessToken: f.token, TokenType: "Bearer", ExpiresIn: 3600}, tc.err).Once()
+				f.auth.EXPECT().
+					Login(httpRequestContext(), fixtureEmail, "test-password").
+					Return(domain.Token{AccessToken: f.token, TokenType: "Bearer", ExpiresIn: 3600}, tc.err).
+					Once()
 			}
 			response := f.request(http.MethodPost, loginPath, tc.body, false)
 			if response.Code != tc.want {
@@ -324,7 +356,8 @@ func TestLogin(t *testing.T) {
 				if err := json.Unmarshal(response.Body.Bytes(), &token); err != nil {
 					t.Fatal(err)
 				}
-				if token["access_token"] != f.token || token["token_type"] != "Bearer" || token["expires_in"] != float64(3600) {
+				if token["access_token"] != f.token || token["token_type"] != "Bearer" ||
+					token["expires_in"] != float64(3600) {
 					t.Fatal("login response or correlation was lost")
 				}
 			} else if response.Body.Len() != 0 {
@@ -336,6 +369,7 @@ func TestLogin(t *testing.T) {
 		})
 	}
 }
+
 func TestInvalidServiceResponsesAreInternalErrors(t *testing.T) {
 	f := newHTTPFixture(t)
 	f.dummies.EXPECT().Create(httpRequestContext(), fixtureDummyName, "").Return("invalid", nil).Once()
@@ -347,14 +381,18 @@ func TestInvalidServiceResponsesAreInternalErrors(t *testing.T) {
 		t.Fatalf("status=%d", response.Code)
 	}
 }
+
 func TestCreateWaitsForPublication(t *testing.T) {
 	f := newHTTPFixture(t)
 	started, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
-	f.dummies.EXPECT().Create(httpRequestContext(), fixtureDummyName, "").RunAndReturn(func(_ context.Context, _, _ string) (string, error) {
-		close(started)
-		<-release
-		return fixtureDummyID, nil
-	}).Once()
+	f.dummies.EXPECT().
+		Create(httpRequestContext(), fixtureDummyName, "").
+		RunAndReturn(func(_ context.Context, _, _ string) (string, error) {
+			close(started)
+			<-release
+			return fixtureDummyID, nil
+		}).
+		Once()
 	var response *httptest.ResponseRecorder
 	go func() {
 		response = f.request(http.MethodPost, dummiesPath, createBody, true)

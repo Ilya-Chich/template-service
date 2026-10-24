@@ -2,11 +2,13 @@ package http
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
+	"net/http"
+
 	"http-api-template/internal/adapter/http/view"
 	"http-api-template/internal/core/domain"
-	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func (h *handler) get(ctx *gin.Context) {
@@ -31,6 +33,7 @@ func (h *handler) get(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, view.GetDummyResponse{Id: parsedID, Name: dummy.Name, Note: dummy.Note})
 }
+
 func (h *handler) create(ctx *gin.Context) {
 	var req view.CreateDummyRequest
 	if !decodeBody(ctx, &req, h.createSchema) {
@@ -64,6 +67,7 @@ func (h *handler) create(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusAccepted, view.CreateDummyResponse{Id: parsedID})
 }
+
 func (h *handler) patch(ctx *gin.Context) {
 	id := ctx.Param("id")
 	if err := domain.ValidateID(id); err != nil {
@@ -85,6 +89,7 @@ func (h *handler) patch(ctx *gin.Context) {
 	}
 	ctx.Status(http.StatusAccepted)
 }
+
 func (h *handler) remove(ctx *gin.Context) {
 	id := ctx.Param("id")
 	if err := domain.ValidateID(id); err != nil {

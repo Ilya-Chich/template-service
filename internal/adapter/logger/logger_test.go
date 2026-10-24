@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"http-api-template/internal/core/requestid"
-	portmocks "http-api-template/internal/mocks/port"
 	"log/slog"
 	"strings"
 	"testing"
+
+	"http-api-template/internal/core/requestid"
+	portmocks "http-api-template/internal/mocks/port"
 )
 
 func TestJSONLogging(t *testing.T) {
@@ -17,7 +18,19 @@ func TestJSONLogging(t *testing.T) {
 	log := New(&output, portmocks.NewMockIDGenerator(t))
 	ctx := requestid.WithID(context.Background(), "incoming-id")
 	log.Info(ctx, "request accepted", "status", 202)
-	log.Error(ctx, "operation failed", "password", "private-password", "JWT_SECRET", "private-key", "Authorization", "private-token", "payload", "private-payload", slog.Group("nested", slog.String("access_token", "private-access")))
+	log.Error(
+		ctx,
+		"operation failed",
+		"password",
+		"private-password",
+		"JWT_SECRET",
+		"private-key",
+		"Authorization",
+		"private-token",
+		"payload",
+		"private-payload",
+		slog.Group("nested", slog.String("access_token", "private-access")),
+	)
 	decoder := json.NewDecoder(&output)
 	for _, level := range []string{"INFO", "ERROR"} {
 		var record map[string]any
@@ -36,6 +49,7 @@ func TestJSONLogging(t *testing.T) {
 		}
 	}
 }
+
 func TestFallbackCorrelation(t *testing.T) {
 	for _, tc := range []struct {
 		name string

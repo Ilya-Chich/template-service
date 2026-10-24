@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"http-api-template/config"
 	"io"
 	"os"
+
+	"http-api-template/config"
 )
 
 func run(stdout, stderr io.Writer) int {
@@ -19,6 +20,7 @@ func run(stdout, stderr io.Writer) int {
 	}
 	return 0
 }
+
 func main() {
 	os.Exit(run(os.Stdout, os.Stderr))
 }

@@ -25,6 +25,7 @@ func TestHTTPFailureStopsAndWaitsForConsumer(t *testing.T) {
 		t.Fatalf("closed=%v error=%v", closed, err)
 	}
 }
+
 func TestConsumerFailureReachesMain(t *testing.T) {
 	workerErr := errors.New("consumer lifecycle failed")
 	release := make(chan struct{})
@@ -38,6 +39,7 @@ func TestConsumerFailureReachesMain(t *testing.T) {
 		t.Fatalf("error=%v", err)
 	}
 }
+
 func TestUnexpectedConsumerExit(t *testing.T) {
 	release := make(chan struct{})
 	err := runKafkaAndHTTP(context.Background(), func(_ context.Context) error {

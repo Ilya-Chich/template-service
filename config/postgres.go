@@ -15,6 +15,7 @@ func LoadPostgresURL() (string, error) {
 	}
 	return postgresURL(values)
 }
+
 func LoadMigrationURL() (string, error) {
 	values, err := loadEnvironment()
 	if err != nil {
@@ -25,6 +26,7 @@ func LoadMigrationURL() (string, error) {
 	}
 	return postgresURL(values)
 }
+
 func postgresURL(values map[string]string) (string, error) {
 	for _, key := range []string{"POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"} {
 		if strings.TrimSpace(values[key]) == "" {

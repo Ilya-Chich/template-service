@@ -3,11 +3,12 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/joho/godotenv"
 	"io/fs"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -33,6 +34,7 @@ func Load() (Config, error) {
 	}
 	return parse(values)
 }
+
 func loadEnvironment() (map[string]string, error) {
 	path := os.Getenv("ENV_FILE")
 	if path == "" {
@@ -56,6 +58,7 @@ func loadEnvironment() (map[string]string, error) {
 	}
 	return values, nil
 }
+
 func parse(values map[string]string) (Config, error) {
 	for _, key := range []string{"HTTP_PORT", "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB", "KAFKA_BROKER", "KAFKA_TOPIC", "JWT_SECRET"} {
 		if strings.TrimSpace(values[key]) == "" {
@@ -96,6 +99,7 @@ func parse(values map[string]string) (Config, error) {
 		JWTSecret: values["JWT_SECRET"], SSLCertPath: values["SSL_CERT_PATH"], SSLKeyPath: values["SSL_KEY_PATH"],
 	}, nil
 }
+
 func parsePort(value, key string) (int, error) {
 	port, err := strconv.Atoi(value)
 	if err != nil || port < 1 || port > 65535 {

@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"http-api-template/internal/core/domain"
 	"io"
 	"strings"
+
+	"http-api-template/internal/core/domain"
 )
 
 const (
@@ -41,6 +42,7 @@ type event struct {
 func invalidEvent() error {
 	return fmt.Errorf("%w: invalid Kafka event", domain.ErrInvalid)
 }
+
 func decodeJSON(data []byte, value any) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
@@ -52,6 +54,7 @@ func decodeJSON(data []byte, value any) error {
 	}
 	return nil
 }
+
 func stringField(raw json.RawMessage, required bool) (string, error) {
 	if len(raw) == 0 {
 		if required {
@@ -68,6 +71,7 @@ func stringField(raw json.RawMessage, required bool) (string, error) {
 	}
 	return value, nil
 }
+
 func decodeEvent(data []byte) (event, error) {
 	var wire envelope
 	if err := decodeJSON(data, &wire); err != nil {

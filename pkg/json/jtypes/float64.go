@@ -2,8 +2,9 @@ package jtypes
 
 import (
 	"errors"
-	"http-api-template/pkg/json"
 	"strconv"
+
+	"http-api-template/pkg/json"
 )
 
 var ErrInvalidFloatSyntax = errors.New("invalid syntax")

@@ -112,7 +112,8 @@ func TestBlockedConsumerAndCloseAreBounded(t *testing.T) {
 
 func TestServerTimeouts(t *testing.T) {
 	s := newHTTPServer(":0", http.NotFoundHandler())
-	if s.ReadHeaderTimeout != 5*time.Second || s.ReadTimeout != 10*time.Second || s.WriteTimeout != 10*time.Second || s.IdleTimeout != time.Minute {
+	if s.ReadHeaderTimeout != 5*time.Second || s.ReadTimeout != 10*time.Second || s.WriteTimeout != 10*time.Second ||
+		s.IdleTimeout != time.Minute {
 		t.Fatalf("unexpected server timeouts: %+v", s)
 	}
 }

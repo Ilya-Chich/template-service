@@ -2,9 +2,11 @@ package kafka
 
 import (
 	"context"
-	"github.com/segmentio/kafka-go"
+
 	"http-api-template/internal/core/port"
 	"http-api-template/internal/core/requestid"
+
+	"github.com/segmentio/kafka-go"
 )
 
 const RequestIDHeader = "request_id"
@@ -24,6 +26,7 @@ func SetMessageRequestID(ctx context.Context, ids port.IDGenerator, message *kaf
 	message.Headers = headers
 	return ctx, nil
 }
+
 func MessageContext(parent context.Context, message kafka.Message, ids port.IDGenerator) (context.Context, error) {
 	id, count := "", 0
 	for _, header := range message.Headers {

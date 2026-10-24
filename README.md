@@ -67,6 +67,7 @@ token, err := NewAuth(issuer).Login(ctx, email, password)
 Variadic arguments are expanded: expect each Kafka message or structured log argument separately. Use ordered expectations for Kafka processing/commit retries and typed callbacks for blocking or cancellation scenarios. All handwritten dependency doubles have been replaced with generated mocks. Postgres tests retain SQLMock; configuration tests exercise real environment variables and temporary files.
 
 ```sh
+make fmt                          # pinned goimports, golines (120 columns), gofumpt
 make test                         # go test -race ./...
 make lint                         # pinned golangci-lint
 govulncheck="$(go -C tools tool -n govulncheck)"

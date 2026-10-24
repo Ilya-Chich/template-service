@@ -3,6 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
+
 	"http-api-template/config"
 	authadapter "http-api-template/internal/adapter/auth"
 	httpadapter "http-api-template/internal/adapter/http"
@@ -12,11 +18,6 @@ import (
 	"http-api-template/internal/adapter/uuid"
 	"http-api-template/internal/core/port"
 	"http-api-template/internal/core/service"
-	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -65,9 +66,21 @@ func run(ctx context.Context) error {
 	}
 	return nil
 }
-func serve(ctx context.Context, db *gorm.DB, cfg config.Config, log port.Logger, ids port.IDGenerator, auth port.AuthService, verifier port.TokenVerifier) (err error) {
+
+func serve(
+	ctx context.Context,
+	db *gorm.DB,
+	cfg config.Config,
+	log port.Logger,
+	ids port.IDGenerator,
+	auth port.AuthService,
+	verifier port.TokenVerifier,
+) (err error) {
 	defer func() {
-		err = errors.Join(err, bounded("database close", shutdownTimeout, func(context.Context) error { return postgres.Close(db) }))
+		err = errors.Join(
+			err,
+			bounded("database close", shutdownTimeout, func(context.Context) error { return postgres.Close(db) }),
+		)
 	}()
 	writer, err := kafkaadapter.NewWriter([]string{cfg.KafkaBroker}, cfg.KafkaTopic)
 	if err != nil {
@@ -75,7 +88,10 @@ func serve(ctx context.Context, db *gorm.DB, cfg config.Config, log port.Logger,
 	}
 	publisher := kafkaadapter.NewPublisher(writer, log, ids)
 	defer func() {
-		err = errors.Join(err, bounded("writer close", shutdownTimeout, func(context.Context) error { return publisher.Close() }))
+		err = errors.Join(
+			err,
+			bounded("writer close", shutdownTimeout, func(context.Context) error { return publisher.Close() }),
+		)
 	}()
 	processor := service.NewDummy(postgres.NewDummy(db), publisher, ids)
 	gin.SetMode(gin.ReleaseMode)

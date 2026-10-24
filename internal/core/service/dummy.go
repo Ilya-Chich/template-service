@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/port"
 )
@@ -14,12 +15,15 @@ type Dummy struct {
 	ids        port.IDGenerator
 }
 
-var _ port.DummyService = (*Dummy)(nil)
-var _ port.DummyProcessor = (*Dummy)(nil)
+var (
+	_ port.DummyService   = (*Dummy)(nil)
+	_ port.DummyProcessor = (*Dummy)(nil)
+)
 
 func NewDummy(repository port.DummyRepository, publisher port.EventPublisher, ids port.IDGenerator) *Dummy {
 	return &Dummy{repository: repository, publisher: publisher, ids: ids}
 }
+
 func (s *Dummy) Create(ctx context.Context, name, note string) (string, error) {
 	if err := domain.ValidateName(name); err != nil {
 		return "", err
@@ -41,12 +45,14 @@ func (s *Dummy) Create(ctx context.Context, name, note string) (string, error) {
 	}
 	return id, nil
 }
+
 func (s *Dummy) Get(ctx context.Context, id string) (domain.Dummy, error) {
 	if err := domain.ValidateID(id); err != nil {
 		return domain.Dummy{}, err
 	}
 	return s.repository.Get(ctx, id)
 }
+
 func (s *Dummy) Patch(ctx context.Context, id string, patch domain.Patch) error {
 	if err := domain.ValidateID(id); err != nil {
 		return err
@@ -56,6 +62,7 @@ func (s *Dummy) Patch(ctx context.Context, id string, patch domain.Patch) error 
 	}
 	return s.publisher.PublishUpdate(ctx, id, patch)
 }
+
 func (s *Dummy) Delete(ctx context.Context, id string) error {
 	if err := domain.ValidateID(id); err != nil {
 		return err

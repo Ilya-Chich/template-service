@@ -3,13 +3,16 @@ package service
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"http-api-template/internal/core/domain"
 	portmocks "http-api-template/internal/mocks/port"
-	"testing"
 )
 
-const testEmail = "user@example.com"
-const testPassword = "example"
+const (
+	testEmail    = "user@example.com"
+	testPassword = "example"
+)
 
 func TestLogin(t *testing.T) {
 	for _, tc := range []struct {

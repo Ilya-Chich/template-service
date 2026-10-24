@@ -1,10 +1,12 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
-	"http-api-template/internal/core/port"
 	"net/http"
 	"strings"
+
+	"http-api-template/internal/core/port"
+
+	"github.com/gin-gonic/gin"
 )
 
 func JWT(verifier port.TokenVerifier) gin.HandlerFunc {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+
 	"http-api-template/internal/core/domain"
 )
 
@@ -25,6 +26,7 @@ func (s *Dummy) ProcessCreate(ctx context.Context, dummy domain.Dummy) error {
 	}
 	return nil
 }
+
 func (s *Dummy) ProcessUpdate(ctx context.Context, id string, patch domain.Patch) error {
 	if err := domain.ValidateID(id); err != nil {
 		return err
@@ -37,6 +39,7 @@ func (s *Dummy) ProcessUpdate(ctx context.Context, id string, patch domain.Patch
 	}
 	return nil
 }
+
 func (s *Dummy) ProcessDelete(ctx context.Context, id string) error {
 	if err := domain.ValidateID(id); err != nil {
 		return err

@@ -3,9 +3,10 @@ package requestid
 import (
 	"context"
 	"errors"
-	portmocks "http-api-template/internal/mocks/port"
 	"strings"
 	"testing"
+
+	portmocks "http-api-template/internal/mocks/port"
 )
 
 func TestValid(t *testing.T) {
@@ -30,6 +31,7 @@ func TestValid(t *testing.T) {
 		})
 	}
 }
+
 func TestEnsure(t *testing.T) {
 	ids := portmocks.NewMockIDGenerator(t)
 	ids.EXPECT().NewID().Return("generated-id", nil).Once()

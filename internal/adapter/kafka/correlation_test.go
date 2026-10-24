@@ -3,21 +3,28 @@ package kafka
 import (
 	"context"
 	"errors"
-	"github.com/segmentio/kafka-go"
+	"testing"
+
 	"http-api-template/internal/core/requestid"
 	portmocks "http-api-template/internal/mocks/port"
-	"testing"
+
+	"github.com/segmentio/kafka-go"
 )
 
-const incomingID = "incoming-id"
-const generatedID = "generated-id"
+const (
+	incomingID  = "incoming-id"
+	generatedID = "generated-id"
+)
 
 func TestPropagation(t *testing.T) {
 	ids := portmocks.NewMockIDGenerator(t)
 	ctx := requestid.WithID(context.Background(), incomingID)
-	message := kafka.Message{Headers: []kafka.Header{{Key: "other", Value: []byte("kept")}, {Key: RequestIDHeader, Value: []byte("old")}}}
+	message := kafka.Message{
+		Headers: []kafka.Header{{Key: "other", Value: []byte("kept")}, {Key: RequestIDHeader, Value: []byte("old")}},
+	}
 	publishedCtx, err := SetMessageRequestID(ctx, ids, &message)
-	if err != nil || requestid.ID(publishedCtx) != incomingID || len(message.Headers) != 2 || string(message.Headers[0].Value) != "kept" {
+	if err != nil || requestid.ID(publishedCtx) != incomingID || len(message.Headers) != 2 ||
+		string(message.Headers[0].Value) != "kept" {
 		t.Fatal("publication did not preserve the request context and unrelated headers")
 	}
 	consumedCtx, err := MessageContext(context.Background(), message, ids)
@@ -31,6 +38,7 @@ func TestPropagation(t *testing.T) {
 		}
 	}
 }
+
 func TestExternalMessages(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

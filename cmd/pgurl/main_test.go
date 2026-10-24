@@ -39,6 +39,7 @@ func TestRun(t *testing.T) {
 		})
 	}
 }
+
 func TestRunWriteFailure(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("POSTGRES_URL", exampleURL)

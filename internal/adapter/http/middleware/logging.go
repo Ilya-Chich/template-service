@@ -1,11 +1,13 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
-	"http-api-template/internal/core/port"
-	"http-api-template/internal/core/requestid"
 	"net/http"
 	"time"
+
+	"http-api-template/internal/core/port"
+	"http-api-template/internal/core/requestid"
+
+	"github.com/gin-gonic/gin"
 )
 
 const RequestIDHeader = "X-Request-ID"
@@ -26,13 +28,26 @@ func RequestID(ids port.IDGenerator) gin.HandlerFunc {
 		ctx.Next()
 	}
 }
+
 func AccessLog(log port.Logger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		started := time.Now()
 		ctx.Next()
-		log.Info(ctx.Request.Context(), "HTTP request", "method", ctx.Request.Method, "route", ctx.FullPath(), "status", ctx.Writer.Status(), "duration_ms", time.Since(started).Milliseconds())
+		log.Info(
+			ctx.Request.Context(),
+			"HTTP request",
+			"method",
+			ctx.Request.Method,
+			"route",
+			ctx.FullPath(),
+			"status",
+			ctx.Writer.Status(),
+			"duration_ms",
+			time.Since(started).Milliseconds(),
+		)
 	}
 }
+
 func Recovery(log port.Logger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		defer func() {

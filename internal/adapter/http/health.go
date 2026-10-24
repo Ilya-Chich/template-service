@@ -1,9 +1,11 @@
 package http
 
 import (
-	"github.com/gin-gonic/gin"
-	"http-api-template/internal/adapter/http/view"
 	"net/http"
+
+	"http-api-template/internal/adapter/http/view"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (h *handler) health(ctx *gin.Context) {

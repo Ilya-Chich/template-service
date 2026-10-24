@@ -1,11 +1,13 @@
 package http
 
 import (
-	"github.com/gin-gonic/gin"
-	"http-api-template/internal/adapter/http/view"
-	"http-api-template/internal/core/domain"
 	"net/http"
 	"net/mail"
+
+	"http-api-template/internal/adapter/http/view"
+	"http-api-template/internal/core/domain"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (h *handler) login(ctx *gin.Context) {

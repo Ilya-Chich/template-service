@@ -37,18 +37,21 @@ func ValidateID(id string) error {
 	}
 	return nil
 }
+
 func ValidateName(name string) error {
 	if strings.TrimSpace(name) == "" {
 		return fmt.Errorf("%w: name is required", ErrInvalid)
 	}
 	return nil
 }
+
 func (d Dummy) Validate() error {
 	if err := ValidateID(d.ID); err != nil {
 		return err
 	}
 	return ValidateName(d.Name)
 }
+
 func (p Patch) Validate() error {
 	if p.Name == nil && p.Note == nil {
 		return fmt.Errorf("%w: patch must include name or note", ErrInvalid)

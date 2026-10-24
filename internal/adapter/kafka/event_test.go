@@ -2,16 +2,22 @@ package kafka
 
 import (
 	"errors"
-	"http-api-template/internal/core/domain"
 	"strings"
 	"testing"
+
+	"http-api-template/internal/core/domain"
 )
 
-const testDummyID = "550e8400-e29b-41d4-a716-446655440000"
-const otherDummyID = "550e8400-e29b-41d4-a716-446655440001"
-const createJSON = `{"event_type":"create","dummy_id":"` + testDummyID + `","dummy":{"id":"` + testDummyID + `","name":"Example","note":"note"}}`
-const updateJSON = `{"event_type":"update","dummy_id":"` + testDummyID + `","patch":{"note":""}}`
-const deleteJSON = `{"event_type":"delete","dummy_id":"` + testDummyID + `"}`
+const (
+	testDummyID  = "550e8400-e29b-41d4-a716-446655440000"
+	otherDummyID = "550e8400-e29b-41d4-a716-446655440001"
+)
+
+const (
+	createJSON = `{"event_type":"create","dummy_id":"` + testDummyID + `","dummy":{"id":"` + testDummyID + `","name":"Example","note":"note"}}`
+	updateJSON = `{"event_type":"update","dummy_id":"` + testDummyID + `","patch":{"note":""}}`
+	deleteJSON = `{"event_type":"delete","dummy_id":"` + testDummyID + `"}`
+)
 
 func TestEventCodec(t *testing.T) {
 	for _, tc := range []struct {
@@ -28,10 +34,12 @@ func TestEventCodec(t *testing.T) {
 			if err != nil || decoded.kind != tc.kind || decoded.id != testDummyID {
 				t.Fatalf("event=%v error=%v", decoded, err)
 			}
-			if tc.kind == eventCreate && decoded.dummy != (domain.Dummy{ID: testDummyID, Name: "Example", Note: "note"}) {
+			if tc.kind == eventCreate &&
+				decoded.dummy != (domain.Dummy{ID: testDummyID, Name: "Example", Note: "note"}) {
 				t.Fatal("create payload was changed")
 			}
-			if tc.kind == eventUpdate && (decoded.patch.Note == nil || *decoded.patch.Note != "" || decoded.patch.Name != nil) {
+			if tc.kind == eventUpdate &&
+				(decoded.patch.Note == nil || *decoded.patch.Note != "" || decoded.patch.Name != nil) {
 				t.Fatal("explicit empty note or omitted name was lost")
 			}
 		})
@@ -41,6 +49,7 @@ func TestEventCodec(t *testing.T) {
 		t.Fatal("UUID spelling must not change partition identity")
 	}
 }
+
 func TestInvalidEvents(t *testing.T) {
 	for _, tc := range []struct {
 		name string

@@ -9,6 +9,9 @@ GOLANGCI = $(shell $(TOOLBIN) golangci-lint)
 GOOSE = $(shell $(TOOLBIN) goose)
 GOVULNCHECK = $(shell $(TOOLBIN) govulncheck)
 MOCKERY = $(shell $(TOOLBIN) mockery)
+GOIMPORTS = $(shell $(TOOLBIN) goimports)
+GOFUMPT = $(shell $(TOOLBIN) gofumpt)
+GOLINES = $(shell $(TOOLBIN) golines)
 
 COMPOSE_FILE ?= $(if $(filter .env.prod,$(ENV_FILE)),docker-compose.prod.yml,docker-compose.yml)
 COMPOSE = docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE)
@@ -90,3 +93,9 @@ migrate-status:
 
 migrate-version:
 	$(call migrate,version)
+
+.PHONY: fmt
+fmt:
+	$(GOIMPORTS) -w -l .
+	$(GOLINES) -w --base-formatter=gofmt --no-reformat-tags --max-len=120 .
+	$(GOFUMPT) -w -l .

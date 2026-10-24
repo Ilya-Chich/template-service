@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/segmentio/kafka-go"
-	"github.com/stretchr/testify/mock"
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/requestid"
 	portmocks "http-api-template/internal/mocks/port"
+
+	"github.com/segmentio/kafka-go"
+	"github.com/stretchr/testify/mock"
 )
 
 var errUnavailable = errors.New("dependency unavailable")
@@ -31,7 +32,14 @@ func newConsumerFixture(t *testing.T) *consumerFixture {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	f := &consumerFixture{reader: NewMockMessageReader(t), processor: portmocks.NewMockDummyProcessor(t), ids: portmocks.NewMockIDGenerator(t), logger: portmocks.NewMockLogger(t), ctx: ctx, cancel: cancel}
+	f := &consumerFixture{
+		reader:    NewMockMessageReader(t),
+		processor: portmocks.NewMockDummyProcessor(t),
+		ids:       portmocks.NewMockIDGenerator(t),
+		logger:    portmocks.NewMockLogger(t),
+		ctx:       ctx,
+		cancel:    cancel,
+	}
 	f.consumer = NewConsumer(f.reader, f.processor, f.logger, f.ids)
 	return f
 }
@@ -44,11 +52,17 @@ func (f *consumerFixture) end() *mock.Call {
 }
 
 func kafkaMessage(data string, offset int64) kafka.Message {
-	return kafka.Message{Value: []byte(data), Offset: offset, Headers: []kafka.Header{{Key: RequestIDHeader, Value: []byte(incomingID)}}}
+	return kafka.Message{
+		Value:   []byte(data),
+		Offset:  offset,
+		Headers: []kafka.Header{{Key: RequestIDHeader, Value: []byte(incomingID)}},
+	}
 }
+
 func correlatedContext(id string) interface{} {
 	return mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == id })
 }
+
 func TestConsumerDispatch(t *testing.T) {
 	f := newConsumerFixture(t)
 	create, update, remove := kafkaMessage(createJSON, 1), kafkaMessage(updateJSON, 2), kafkaMessage(deleteJSON, 3)
@@ -75,6 +89,7 @@ func TestConsumerDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
 func TestConsumerRetries(t *testing.T) {
 	f := newConsumerFixture(t)
 	message := kafkaMessage(createJSON, 1)
@@ -109,6 +124,7 @@ func TestConsumerRetries(t *testing.T) {
 		t.Fatalf("delays=%v", delays)
 	}
 }
+
 func TestConsumerPermanentFailures(t *testing.T) {
 	for _, tc := range []struct {
 		name, data string
@@ -131,15 +147,28 @@ func TestConsumerPermanentFailures(t *testing.T) {
 					t.Fatal(err)
 				}
 				if tc.data == createJSON {
-					calls = append(calls, f.processor.EXPECT().ProcessCreate(ctx, decoded.dummy).Return(tc.failure).Once())
+					calls = append(
+						calls,
+						f.processor.EXPECT().ProcessCreate(ctx, decoded.dummy).Return(tc.failure).Once(),
+					)
 				} else {
 					calls = append(calls, f.processor.EXPECT().ProcessUpdate(ctx, decoded.id, decoded.patch).Return(tc.failure).Once())
 				}
-				calls = append(calls, f.logger.EXPECT().Error(ctx, "Kafka event skipped", "reason", "permanent_command_failure", "event_type", decoded.kind).Once())
+				calls = append(
+					calls,
+					f.logger.EXPECT().
+						Error(ctx, "Kafka event skipped", "reason", "permanent_command_failure", "event_type", decoded.kind).
+						Once(),
+				)
 			} else {
 				calls = append(calls, f.logger.EXPECT().Error(ctx, "Kafka event skipped", "reason", "invalid_event").Once())
 			}
-			calls = append(calls, f.reader.EXPECT().CommitMessages(ctx, message).Return(nil).Once(), f.end(), f.reader.EXPECT().Close().Return(nil).Once())
+			calls = append(
+				calls,
+				f.reader.EXPECT().CommitMessages(ctx, message).Return(nil).Once(),
+				f.end(),
+				f.reader.EXPECT().Close().Return(nil).Once(),
+			)
 			mock.InOrder(calls...)
 			f.consumer.wait = func(context.Context, time.Duration) error {
 				t.Error("permanent errors must not retry")
@@ -151,6 +180,7 @@ func TestConsumerPermanentFailures(t *testing.T) {
 		})
 	}
 }
+
 func TestConsumerReplayAfterUncommittedProcessing(t *testing.T) {
 	message := kafkaMessage(deleteJSON, 7)
 	for _, replay := range []bool{false, true} {
@@ -175,6 +205,7 @@ func TestConsumerReplayAfterUncommittedProcessing(t *testing.T) {
 		})
 	}
 }
+
 func TestCancellationAndLifecycleErrors(t *testing.T) {
 	t.Run("fetch cancellation closes reader and exits", func(t *testing.T) {
 		f := newConsumerFixture(t)
@@ -209,7 +240,11 @@ func TestCancellationAndLifecycleErrors(t *testing.T) {
 		}
 		mock.InOrder(
 			f.reader.EXPECT().FetchMessage(f.ctx).Return(message, nil).Once(),
-			f.processor.EXPECT().ProcessCreate(correlatedContext(incomingID), decoded.dummy).Run(func(context.Context, domain.Dummy) { f.cancel() }).Return(errUnavailable).Once(),
+			f.processor.EXPECT().
+				ProcessCreate(correlatedContext(incomingID), decoded.dummy).
+				Run(func(context.Context, domain.Dummy) { f.cancel() }).
+				Return(errUnavailable).
+				Once(),
 			f.reader.EXPECT().Close().Return(nil).Once(),
 		)
 		if err := f.consumer.Run(f.ctx); err != nil {
@@ -237,6 +272,7 @@ func TestCancellationAndLifecycleErrors(t *testing.T) {
 		}
 	})
 }
+
 func TestBackoff(t *testing.T) {
 	f := newConsumerFixture(t)
 	f.logger.EXPECT().Error(mock.Anything, "retry").Times(9)
@@ -250,7 +286,17 @@ func TestBackoff(t *testing.T) {
 		}
 		return errUnavailable
 	}, "retry")
-	want := []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond, 1600 * time.Millisecond, 3200 * time.Millisecond, maxBackoff, maxBackoff, maxBackoff}
+	want := []time.Duration{
+		100 * time.Millisecond,
+		200 * time.Millisecond,
+		400 * time.Millisecond,
+		800 * time.Millisecond,
+		1600 * time.Millisecond,
+		3200 * time.Millisecond,
+		maxBackoff,
+		maxBackoff,
+		maxBackoff,
+	}
 	if err != nil || !reflect.DeepEqual(delays, want) {
 		t.Fatalf("error=%v delays=%v", err, delays)
 	}
