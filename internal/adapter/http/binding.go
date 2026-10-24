@@ -12,15 +12,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const maxRequestBodyBytes = 1 << 20
+
 func decodeBody(ctx *gin.Context, target any, schema *openapi3.Schema) bool {
+	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, maxRequestBodyBytes)
 	decoder := json.NewDecoder(ctx.Request.Body)
 	var raw json.RawMessage
 	if err := decoder.Decode(&raw); err != nil {
-		ctx.Status(http.StatusBadRequest)
+		bodyReadError(ctx, err)
 		return false
 	}
 	if err := decoder.Decode(new(any)); !errors.Is(err, io.EOF) {
-		ctx.Status(http.StatusBadRequest)
+		bodyReadError(ctx, err)
 		return false
 	}
 	var value any
@@ -37,6 +40,15 @@ func decodeBody(ctx *gin.Context, target any, schema *openapi3.Schema) bool {
 		return false
 	}
 	return true
+}
+
+func bodyReadError(ctx *gin.Context, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		ctx.Status(http.StatusRequestEntityTooLarge)
+		return
+	}
+	ctx.Status(http.StatusBadRequest)
 }
 
 func (h *handler) fail(ctx *gin.Context, err error, allowNotFound bool) {

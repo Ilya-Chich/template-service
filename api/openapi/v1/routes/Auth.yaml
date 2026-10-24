@@ -8,6 +8,7 @@ paths:
         Demonstration stub only. Validates email and a nonempty password but does not
         verify credentials or look up a user. Issues a one-hour HS256 token.
       requestBody:
+        description: JSON body must not exceed 1 MiB (1048576 bytes), including whitespace.
         required: true
         content:
           application/json:
@@ -22,5 +23,7 @@ paths:
                 $ref: '../responses/AuthResponse.yaml#/AuthResponse'
         '400':
           description: Invalid request; empty response body.
+        '413':
+          description: Request body exceeds 1 MiB (1048576 bytes); empty response body.
         '500':
           description: Unexpected token issuance failure; empty response body.

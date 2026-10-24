@@ -11,6 +11,7 @@ paths:
         Names are case-sensitive and unique. Returns 409 if the name already exists
         in Postgres. Concurrent pending creates can still race before persistence.
       requestBody:
+        description: JSON body must not exceed 1 MiB (1048576 bytes), including whitespace.
         required: true
         content:
           application/json:
@@ -29,6 +30,8 @@ paths:
           description: Missing or invalid bearer token; empty response body.
         '409':
           description: Name already exists; empty response body.
+        '413':
+          description: Request body exceeds 1 MiB (1048576 bytes); empty response body.
         '500':
           description: Publication or unexpected service failure; empty response body.
   DummyById:
@@ -68,6 +71,7 @@ paths:
         processing completes. Updating a missing ID is a successful consumer no-op.
         A name conflict is logged and skipped by the consumer, not returned as HTTP 409.
       requestBody:
+        description: JSON body must not exceed 1 MiB (1048576 bytes), including whitespace.
         required: true
         content:
           application/json:
@@ -80,6 +84,8 @@ paths:
           description: Invalid UUID or patch; empty response body.
         '401':
           description: Missing or invalid bearer token; empty response body.
+        '413':
+          description: Request body exceeds 1 MiB (1048576 bytes); empty response body.
         '500':
           description: Publication or unexpected service failure; empty response body.
     delete:
