@@ -1,0 +1,51 @@
+name: http-api-template-prod
+
+volumes:
+  postgres-data:
+  kafka-data:
+
+services:
+  api:
+    image: http-api-template:local
+    build:
+      context: .
+      dockerfile: environment/prod/Dockerfile
+    env_file: .env.prod
+    environment:
+      DEBUG: "false"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      KAFKA_BROKER: kafka:9092
+      SSL_CERT_PATH: /app/certs/server.crt
+      SSL_KEY_PATH: /app/certs/server.key
+    ports:
+      - "${HTTP_PORT:-8081}:${HTTP_PORT:-8081}"
+    volumes:
+      - ./certs:/app/certs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    stop_grace_period: 45s
+    restart: unless-stopped
+
+  postgres:
+    extends:
+      file: docker-compose.yml
+      service: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  kafka:
+    extends:
+      file: docker-compose.yml
+      service: kafka
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+  kafka-init:
+    extends:
+      file: docker-compose.yml
+      service: kafka-init

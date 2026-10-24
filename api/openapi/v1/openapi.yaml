@@ -1,0 +1,26 @@
+openapi: 3.0.3
+info:
+  title: HTTP API template
+  version: 1.0.0
+  description: |
+    Target contract for the Dummy starter resource. Writes acknowledge Kafka publication,
+    not persistence. Reads are eventually consistent. Login is a demonstration stub.
+servers:
+  - url: /
+    description: Current server
+paths:
+  /api/v1/health:
+    $ref: 'routes/Health.yaml#/paths/Health'
+  /api/v1/dummies:
+    $ref: 'routes/Dummy.yaml#/paths/CreateDummy'
+  /api/v1/dummies/{id}:
+    $ref: 'routes/Dummy.yaml#/paths/DummyById'
+  /api/v1/auth/login:
+    $ref: 'routes/Auth.yaml#/paths/AuthRoute'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Send Authorization with Bearer followed by the access token.

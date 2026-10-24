@@ -1,0 +1,14 @@
+CreateDummyRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      pattern: '\S'
+      description: Case-sensitive unique name; whitespace-only names are invalid.
+      example: Example
+    note:
+      type: string
+      description: Optional note; omitted means an empty string. Null is invalid.
+      example: A sample note

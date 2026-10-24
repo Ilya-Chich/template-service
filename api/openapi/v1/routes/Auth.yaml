@@ -1,0 +1,26 @@
+paths:
+  AuthRoute:
+    post:
+      tags: [Authentication]
+      operationId: Login
+      summary: Issue a demonstration JWT
+      description: |
+        Demonstration stub only. Validates email and a nonempty password but does not
+        verify credentials or look up a user. Issues a one-hour HS256 token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../requests/AuthRequest.yaml#/AuthRequest'
+      responses:
+        '200':
+          description: Demonstration token issued.
+          content:
+            application/json:
+              schema:
+                $ref: '../responses/AuthResponse.yaml#/AuthResponse'
+        '400':
+          description: Invalid request; empty response body.
+        '500':
+          description: Unexpected token issuance failure; empty response body.

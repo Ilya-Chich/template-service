@@ -1,0 +1,97 @@
+version: "2"
+linters:
+  enable:
+    - asciicheck
+    - dupl
+    - forbidigo
+    - goconst
+    - gocritic
+    - goprintffuncname
+    - gosec
+    - makezero
+    - misspell
+    - revive
+    - whitespace
+  settings:
+    dupl:
+      threshold: 450
+    godot:
+      exclude:
+        - '@.+'
+    revive:
+      rules:
+        - name: var-naming
+          arguments:
+            - []
+            - - ID
+              - URL
+            - - skipPackageNameChecks: true
+        - name: early-return
+          severity: warning
+        - name: argument-limit
+          arguments:
+            - 4
+          severity: warning
+          disabled: true
+        - name: context-as-argument
+          arguments:
+            - allowTypesBefore: '*testing.T'
+          severity: warning
+        - name: context-keys-type
+          severity: warning
+        - name: datarace
+          severity: warning
+        - name: defer
+          arguments:
+            - - call-chain
+              - loop
+              - return
+          severity: warning
+        - name: error-naming
+          severity: warning
+        - name: error-strings
+          severity: warning
+        - name: errorf
+          severity: warning
+        - name: if-return
+          severity: warning
+        - name: line-length-limit
+          arguments:
+            - 120
+          severity: warning
+          disabled: true
+        - name: nested-structs
+          severity: warning
+          disabled: true
+        - name: unreachable-code
+          severity: warning
+        - name: useless-break
+          severity: warning
+        - name: unused-parameter
+          severity: warning
+        - name: unexported-naming
+          severity: warning
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

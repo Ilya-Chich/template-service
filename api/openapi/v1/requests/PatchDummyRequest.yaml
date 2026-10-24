@@ -1,0 +1,18 @@
+PatchDummyRequest:
+  type: object
+  minProperties: 1
+  anyOf:
+    - required: [name]
+    - required: [note]
+  description: |
+    Supply at least one of name or note. Omitted fields remain unchanged.
+    Explicit null is invalid. An empty note clears the stored note.
+  properties:
+    name:
+      type: string
+      minLength: 1
+      pattern: '\S'
+      description: Case-sensitive unique name; whitespace-only names are invalid.
+    note:
+      type: string
+      example: ''

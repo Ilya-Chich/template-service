@@ -1,0 +1,14 @@
+AuthResponse:
+  type: object
+  required: [access_token, token_type, expires_in]
+  properties:
+    access_token:
+      type: string
+      description: HS256 JWT access token, valid for one hour.
+    token_type:
+      type: string
+      enum: [Bearer]
+    expires_in:
+      type: integer
+      enum: [3600]
+      description: Token lifetime in seconds.

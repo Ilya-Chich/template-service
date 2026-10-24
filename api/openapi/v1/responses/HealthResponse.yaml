@@ -1,0 +1,7 @@
+HealthResponse:
+  type: object
+  required: [status]
+  properties:
+    status:
+      type: integer
+      enum: [200]

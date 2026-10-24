@@ -1,0 +1,14 @@
+paths:
+  Health:
+    get:
+      tags: [Health]
+      operationId: Health
+      summary: Process liveness
+      description: Always returns JSON while HTTP is serving; does not check Postgres or Kafka readiness.
+      responses:
+        '200':
+          description: Process is serving HTTP.
+          content:
+            application/json:
+              schema:
+                $ref: '../responses/HealthResponse.yaml#/HealthResponse'

@@ -1,0 +1,100 @@
+paths:
+  CreateDummy:
+    post:
+      tags: [Dummies]
+      operationId: CreateDummy
+      summary: Accept a create command
+      security:
+        - BearerAuth: []
+      description: |
+        Returns after Kafka acknowledges publication. GET may initially return 404.
+        Names are case-sensitive and unique. A duplicate-name create is a successful
+        consumer no-op; the newly returned ID may never become readable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../requests/CreateDummyRequest.yaml#/CreateDummyRequest'
+      responses:
+        '202':
+          description: Command published; persistence is asynchronous.
+          content:
+            application/json:
+              schema:
+                $ref: '../responses/CreateDummyResponse.yaml#/CreateDummyResponse'
+        '400':
+          description: Invalid request; empty response body.
+        '401':
+          description: Missing or invalid bearer token; empty response body.
+        '500':
+          description: Publication or unexpected service failure; empty response body.
+  DummyById:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Dummies]
+      operationId: GetDummy
+      summary: Read a persisted Dummy
+      description: Reads Postgres; recently accepted commands may not yet be reflected.
+      responses:
+        '200':
+          description: Persisted Dummy.
+          content:
+            application/json:
+              schema:
+                $ref: '../responses/GetDummyResponse.yaml#/GetDummyResponse'
+        '400':
+          description: Invalid UUID; empty response body.
+        '404':
+          description: Dummy is not currently stored; empty response body.
+        '500':
+          description: Unexpected service failure; empty response body.
+    patch:
+      tags: [Dummies]
+      operationId: PatchDummy
+      summary: Accept a partial update command
+      security:
+        - BearerAuth: []
+      description: |
+        Returns after Kafka acknowledges publication. Reads may remain stale until
+        processing completes. Updating a missing ID is a successful consumer no-op.
+        A name conflict is logged and skipped by the consumer, not returned as HTTP 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../requests/PatchDummyRequest.yaml#/PatchDummyRequest'
+      responses:
+        '202':
+          description: Command published; empty response body. Persistence is asynchronous.
+        '400':
+          description: Invalid UUID or patch; empty response body.
+        '401':
+          description: Missing or invalid bearer token; empty response body.
+        '500':
+          description: Publication or unexpected service failure; empty response body.
+    delete:
+      tags: [Dummies]
+      operationId: DeleteDummy
+      summary: Accept a delete command
+      security:
+        - BearerAuth: []
+      description: |
+        Returns after Kafka acknowledges publication. GET may still return the resource
+        until processing completes. Deleting a missing ID is a successful consumer no-op.
+      responses:
+        '202':
+          description: Command published; empty response body. Persistence is asynchronous.
+        '400':
+          description: Invalid UUID; empty response body.
+        '401':
+          description: Missing or invalid bearer token; empty response body.
+        '500':
+          description: Publication or unexpected service failure; empty response body.
