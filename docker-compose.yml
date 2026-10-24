@@ -45,6 +45,19 @@ services:
 
   kafka:
     image: apache/kafka:3.9.1
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        if [ -f /var/lib/kafka/data/meta.properties ]; then
+          CLUSTER_ID="$$(sed -n 's/^cluster[.]id=//p' /var/lib/kafka/data/meta.properties)"
+          if [ -z "$$CLUSTER_ID" ]; then
+            echo 'Kafka metadata is missing cluster.id; refusing to initialize existing data' >&2
+            exit 1
+          fi
+          export CLUSTER_ID
+        fi
+        exec /etc/kafka/docker/run
     ports:
       - "127.0.0.1:${KAFKA_EXTERNAL_PORT:-9092}:19092"
     environment:

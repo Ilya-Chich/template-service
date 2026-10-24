@@ -8,8 +8,8 @@ tmp_dir = "tmp"
 [build]
 # Just plain old shell command. You could use `make` as well.
 cmd = "go build -buildvcs=false -gcflags='all=-N -l' -o ./tmp/http-api-template ./cmd/api"
-# Binary file yields from `cmd`.
-bin = "/go/bin/dlv --continue --accept-multiclient --listen=:2345 --headless=true --api-version=2 exec ./tmp/http-api-template"
+# Executable and arguments are separate so Air does not quote the whole command.
+entrypoint = ["/go/bin/dlv", "--continue", "--accept-multiclient", "--listen=:2345", "--headless=true", "--api-version=2", "exec", "./tmp/http-api-template"]
 # Customize binary, can setup environment variables when run your app.
 full_bin = ""
 # Watch these filename extensions.
