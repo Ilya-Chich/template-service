@@ -14,6 +14,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/segmentio/kafka-go v0.4.47
+	github.com/stretchr/testify v1.12.1
 	github.com/swaggest/swgui v1.6.2
 	gorm.io/driver/postgres v1.5.0
 	gorm.io/gorm v1.25.0
@@ -49,8 +50,10 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.9 // indirect
 	github.com/perimeterx/marshmallow v1.1.4 // indirect
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
+	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/arch v0.4.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/net v0.60.0 // indirect

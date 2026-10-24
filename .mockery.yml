@@ -1,0 +1,31 @@
+all: false
+recursive: false
+template: testify
+formatter: goimports
+structname: 'Mock{{.InterfaceName}}'
+template-data:
+  unroll-variadic: true
+packages:
+  http-api-template/internal/core/port:
+    config:
+      dir: internal/mocks/port
+      pkgname: portmocks
+      filename: 'mock_{{.InterfaceName | snakecase}}.go'
+    interfaces:
+      DummyRepository:
+      EventPublisher:
+      IDGenerator:
+      DummyService:
+      DummyProcessor:
+      AuthService:
+      TokenIssuer:
+      TokenVerifier:
+      Logger:
+  http-api-template/internal/adapter/kafka:
+    config:
+      dir: '{{.InterfaceDir}}'
+      pkgname: kafka
+      filename: 'mock_{{.InterfaceName | snakecase}}_test.go'
+    interfaces:
+      MessageReader:
+      MessageWriter:

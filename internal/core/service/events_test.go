@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/mock"
 	"http-api-template/internal/core/domain"
-	"reflect"
+	portmocks "http-api-template/internal/mocks/port"
 	"testing"
 )
 
@@ -31,41 +32,45 @@ func TestProcessCreate(t *testing.T) {
 		{"invalid name", domain.Dummy{ID: testID, Name: " "}, nil, nil, nil, domain.ErrInvalid, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			repo := &fakeRepository{getErr: tc.getErr, nameErr: tc.nameErr, writeErr: tc.insertErr}
-			publisher := &fakePublisher{}
+			repo := portmocks.NewMockDummyRepository(t)
+			publisher := portmocks.NewMockEventPublisher(t)
+			ids := portmocks.NewMockIDGenerator(t)
 			ctx := context.Background()
-			err := NewDummy(repo, publisher, &fakeIDs{}).ProcessCreate(ctx, tc.dummy)
-			if !errors.Is(err, tc.wantErr) || !reflect.DeepEqual(repo.calls, tc.wantCalls) || len(publisher.calls) != 0 {
-				t.Fatalf("error=%v repository=%v publisher=%v", err, repo.calls, publisher.calls)
+			var calls []*mock.Call
+			for _, call := range tc.wantCalls {
+				switch call {
+				case getCallPrefix + testID:
+					calls = append(calls, repo.EXPECT().Get(ctx, tc.dummy.ID).Return(domain.Dummy{}, tc.getErr).Once())
+				case nameCall:
+					calls = append(calls, repo.EXPECT().GetByName(ctx, tc.dummy.Name).Return(domain.Dummy{}, tc.nameErr).Once())
+				case insertCall:
+					calls = append(calls, repo.EXPECT().Insert(ctx, tc.dummy).Return(tc.insertErr).Once())
+				default:
+					t.Fatalf("unknown expected call %q", call)
+				}
 			}
-			if len(tc.wantCalls) != 0 && repo.ctx != ctx {
-				t.Fatal("context was not forwarded")
-			}
-			if len(tc.wantCalls) == 3 && repo.inserted != tc.dummy {
-				t.Fatal("insert changed the event")
+			mock.InOrder(calls...)
+			if err := NewDummy(repo, publisher, ids).ProcessCreate(ctx, tc.dummy); !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error=%v", err)
 			}
 		})
 	}
 }
 func TestProcessCreateReplay(t *testing.T) {
-	repo := &fakeRepository{getErr: domain.ErrNotFound, nameErr: domain.ErrNotFound}
-	svc := NewDummy(repo, &fakePublisher{}, &fakeIDs{})
+	repo := portmocks.NewMockDummyRepository(t)
+	svc := NewDummy(repo, portmocks.NewMockEventPublisher(t), portmocks.NewMockIDGenerator(t))
 	dummy := domain.Dummy{ID: testID, Name: testName}
-	if err := svc.ProcessCreate(context.Background(), dummy); err != nil {
-		t.Fatal(err)
-	}
-	repo.get, repo.getErr = dummy, nil
-	if err := svc.ProcessCreate(context.Background(), dummy); err != nil {
-		t.Fatal(err)
-	}
-	inserts := 0
-	for _, call := range repo.calls {
-		if call == insertCall {
-			inserts++
+	ctx := context.Background()
+	mock.InOrder(
+		repo.EXPECT().Get(ctx, testID).Return(domain.Dummy{}, domain.ErrNotFound).Once(),
+		repo.EXPECT().GetByName(ctx, testName).Return(domain.Dummy{}, domain.ErrNotFound).Once(),
+		repo.EXPECT().Insert(ctx, dummy).Return(nil).Once(),
+		repo.EXPECT().Get(ctx, testID).Return(dummy, nil).Once(),
+	)
+	for range 2 {
+		if err := svc.ProcessCreate(ctx, dummy); err != nil {
+			t.Fatal(err)
 		}
-	}
-	if inserts != 1 {
-		t.Fatalf("inserts=%d", inserts)
 	}
 }
 func TestProcessMutations(t *testing.T) {
@@ -93,28 +98,26 @@ func TestProcessMutations(t *testing.T) {
 		{"delete invalid ID", invalidID, domain.Patch{}, true, nil, domain.ErrInvalid, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			repo := &fakeRepository{writeErr: tc.repoErr}
-			publisher := &fakePublisher{}
-			svc := NewDummy(repo, publisher, &fakeIDs{})
+			repo := portmocks.NewMockDummyRepository(t)
+			publisher := portmocks.NewMockEventPublisher(t)
+			ids := portmocks.NewMockIDGenerator(t)
 			ctx := context.Background()
+			if tc.wantCall != "" {
+				if tc.remove {
+					repo.EXPECT().Delete(ctx, tc.id).Return(tc.repoErr).Once()
+				} else {
+					repo.EXPECT().Update(ctx, tc.id, tc.patch).Return(tc.repoErr).Once()
+				}
+			}
+			svc := NewDummy(repo, publisher, ids)
 			var err error
 			if tc.remove {
 				err = svc.ProcessDelete(ctx, tc.id)
 			} else {
 				err = svc.ProcessUpdate(ctx, tc.id, tc.patch)
 			}
-			var wantCalls []string
-			if tc.wantCall != "" {
-				wantCalls = []string{tc.wantCall}
-			}
-			if !errors.Is(err, tc.wantErr) || !reflect.DeepEqual(repo.calls, wantCalls) || len(publisher.calls) != 0 {
-				t.Fatalf("error=%v repository=%v publisher=%v", err, repo.calls, publisher.calls)
-			}
-			if tc.wantCall != "" && repo.ctx != ctx {
-				t.Fatal("context was not forwarded")
-			}
-			if !tc.remove && tc.wantCall != "" && !reflect.DeepEqual(repo.patch, tc.patch) {
-				t.Fatal("patch lost explicit empty note")
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error=%v", err)
 			}
 		})
 	}

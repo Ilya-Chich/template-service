@@ -4,28 +4,13 @@ import (
 	"context"
 	"errors"
 	"http-api-template/internal/core/domain"
-	"http-api-template/internal/core/port"
+	portmocks "http-api-template/internal/mocks/port"
 	"testing"
 )
 
 const testEmail = "user@example.com"
 const testPassword = "example"
 
-type fakeIssuer struct {
-	calls int
-	email string
-	ctx   context.Context
-	err   error
-	token domain.Token
-}
-
-var _ port.TokenIssuer = (*fakeIssuer)(nil)
-
-func (f *fakeIssuer) Issue(ctx context.Context, email string) (domain.Token, error) {
-	f.calls++
-	f.ctx, f.email = ctx, email
-	return f.token, f.err
-}
 func TestLogin(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -44,17 +29,17 @@ func TestLogin(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			want := domain.Token{AccessToken: "test-token", TokenType: "Bearer", ExpiresIn: 3600}
-			issuer := &fakeIssuer{err: tc.issuerErr, token: want}
+			issuer := portmocks.NewMockTokenIssuer(t)
 			ctx := context.Background()
+			if tc.wantCalls != 0 {
+				issuer.EXPECT().Issue(ctx, tc.email).Return(want, tc.issuerErr).Once()
+			}
 			token, err := NewAuth(issuer).Login(ctx, tc.email, tc.password)
-			if !errors.Is(err, tc.wantErr) || issuer.calls != tc.wantCalls {
-				t.Fatalf("error=%v issuer calls=%d", err, issuer.calls)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error=%v", err)
 			}
 			if err == nil && token != want {
 				t.Fatal("token was not preserved")
-			}
-			if tc.wantCalls != 0 && (issuer.email != tc.email || issuer.ctx != ctx) {
-				t.Fatal("issuer input was not preserved")
 			}
 		})
 	}

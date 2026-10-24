@@ -3,14 +3,22 @@ package kafka
 import (
 	"context"
 	"errors"
-	"github.com/segmentio/kafka-go"
 	"http-api-template/internal/core/domain"
 	"http-api-template/internal/core/requestid"
+	portmocks "http-api-template/internal/mocks/port"
 	"strings"
 	"testing"
+
+	"github.com/segmentio/kafka-go"
+	"github.com/stretchr/testify/mock"
 )
 
 const testBroker = "localhost:9092"
+
+var (
+	_ MessageReader = (*MockMessageReader)(nil)
+	_ MessageWriter = (*MockMessageWriter)(nil)
+)
 
 type testLog struct {
 	messages []string
@@ -23,28 +31,18 @@ func (l *testLog) Error(_ context.Context, message string, _ ...any) {
 	l.messages = append(l.messages, message)
 }
 
-type fakeWriter struct {
-	messages []kafka.Message
-	err      error
-	closeErr error
-}
-
-func (f *fakeWriter) WriteMessages(ctx context.Context, messages ...kafka.Message) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	f.messages = append(f.messages, messages...)
-	return f.err
-}
-func (f *fakeWriter) Close() error {
-	return f.closeErr
-}
 func TestPublisher(t *testing.T) {
 	for _, kind := range []string{eventCreate, eventUpdate, eventDelete} {
 		t.Run(kind, func(t *testing.T) {
-			writer := &fakeWriter{}
-			publisher := NewPublisher(writer, &testLog{}, &fakeIDs{})
+			writer := NewMockMessageWriter(t)
+			logger := portmocks.NewMockLogger(t)
+			publisher := NewPublisher(writer, logger, &fakeIDs{})
 			ctx := requestid.WithID(context.Background(), incomingID)
+			var message kafka.Message
+			writer.EXPECT().WriteMessages(ctx, mock.Anything).Run(func(_ context.Context, messages ...kafka.Message) {
+				message = messages[0]
+			}).Return(nil).Once()
+			logger.EXPECT().Info(ctx, "Kafka event published", "event_type", kind).Once()
 			id := strings.ToUpper(testDummyID)
 			var err error
 			switch kind {
@@ -56,10 +54,9 @@ func TestPublisher(t *testing.T) {
 			case eventDelete:
 				err = publisher.PublishDelete(ctx, id)
 			}
-			if err != nil || len(writer.messages) != 1 {
-				t.Fatalf("error=%v messages=%d", err, len(writer.messages))
+			if err != nil {
+				t.Fatal(err)
 			}
-			message := writer.messages[0]
 			decoded, err := decodeEvent(message.Value)
 			if err != nil || decoded.kind != kind || string(message.Key) != testDummyID {
 				t.Fatal("message codec or partition key failed")
@@ -73,7 +70,9 @@ func TestPublisher(t *testing.T) {
 }
 func TestPublisherFailures(t *testing.T) {
 	unavailable := errors.New("broker unavailable")
-	writer := &fakeWriter{err: unavailable, closeErr: unavailable}
+	writer := NewMockMessageWriter(t)
+	writer.EXPECT().WriteMessages(mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == generatedID }), mock.Anything).Return(unavailable).Once()
+	writer.EXPECT().Close().Return(unavailable).Once()
 	publisher := NewPublisher(writer, &testLog{}, &fakeIDs{})
 	if err := publisher.PublishDelete(context.Background(), testDummyID); !errors.Is(err, unavailable) {
 		t.Fatalf("publication error=%v", err)
@@ -86,8 +85,7 @@ func TestPublisherFailures(t *testing.T) {
 		func() error { return publisher.PublishDelete(context.Background(), "invalid") },
 		func() error { return publisher.PublishUpdate(context.Background(), testDummyID, domain.Patch{}) },
 	} {
-		before := len(writer.messages)
-		if err := call(); !errors.Is(err, domain.ErrInvalid) || len(writer.messages) != before {
+		if err := call(); !errors.Is(err, domain.ErrInvalid) {
 			t.Fatal("invalid input reached the writer")
 		}
 	}

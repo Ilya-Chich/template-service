@@ -8,6 +8,7 @@ OAPI_MERGER = $(shell $(TOOLBIN) oapi-merger)
 GOLANGCI = $(shell $(TOOLBIN) golangci-lint)
 GOOSE = $(shell $(TOOLBIN) goose)
 GOVULNCHECK = $(shell $(TOOLBIN) govulncheck)
+MOCKERY = $(shell $(TOOLBIN) mockery)
 
 COMPOSE_FILE ?= $(if $(filter .env.prod,$(ENV_FILE)),docker-compose.prod.yml,docker-compose.yml)
 COMPOSE = docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE)
@@ -58,6 +59,10 @@ openapi_http: openapi_merge
 .PHONY: lint
 lint:
 	$(GOLANGCI) run
+
+.PHONY: mocks
+mocks:
+	$(MOCKERY) --config .mockery.yml
 
 .PHONY: test
 test:

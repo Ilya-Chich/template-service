@@ -13,11 +13,11 @@ go mod edit -module example.com/your-team/your-api
 go -C tools mod edit -module example.com/your-team/your-api/tools
 ```
 
-Replace `http-api-template/` imports with your module path using the IDE. Rename the Compose project `name` in both Compose files, the API service key and any references if desired, and the production image name. If you rename the binary, update both Dockerfiles, `environment/dev/.air.toml`, and its ignore entry together. Keep the `tools/` module separate.
+Replace `http-api-template/` imports and package paths in `.mockery.yml` with your module path using the IDE, then run `make mocks`. Rename the Compose project `name` in both Compose files, the API service key and any references if desired, and the production image name. If you rename the binary, update both Dockerfiles, `environment/dev/.air.toml`, and its ignore entry together. Keep the `tools/` module separate.
 
 ## 2. Replace Dummy across layers
 
-Replace Dummy's domain model and validation in `internal/core/domain`, its ports in `internal/core/port`, and its command/event-processing services and fake-based tests in `internal/core/service`. Then update the Postgres model/repository, Kafka event codec and dispatcher, HTTP mappings, and composition in `cmd/api`.
+Replace Dummy's domain model and validation in `internal/core/domain`, its ports in `internal/core/port`, and its command/event-processing services and tests in `internal/core/service`. Update the interface allowlist in `.mockery.yml` and regenerate mocks. Then update the Postgres model/repository, Kafka event codec and dispatcher, HTTP mappings, and composition in `cmd/api`.
 
 Replace the split request/response/route YAML under `api/openapi/v1/` and its references in `openapi.yaml`. Change the table and constraints in `database/migrations/`: edit the initial migration only for a fresh, unapplied fork; use a new migration once a database has applied it. Update topic/group examples and tests alongside the resource. Do not migrate an existing application's data by renaming sample types.
 
@@ -51,7 +51,20 @@ Pinned tools from `tools/go.mod` merge the split spec and generate `internal/ada
 
 ## 5. Test services before connecting routes
 
-Add fake repository, publisher, issuer, and ID-generator tests alongside core services before wiring new HTTP handlers. Cover validation, dependency failures, replay/no-op behavior, and explicit empty patch values. Test HTTP mapping/auth with `httptest` and fake services; test Kafka processing and commit retries separately. Normal checks require no database, broker, Docker, TLS certificates, or `.env`.
+Add repository, publisher, issuer, and ID-generator mock expectations alongside core services before wiring new HTTP handlers. Cover validation, dependency failures, replay/no-op behavior, and explicit empty patch values. Test HTTP mapping/auth with `httptest` and fake services; test Kafka processing and commit retries separately. Normal checks require no database, broker, Docker, TLS certificates, or `.env`.
+
+Run `make mocks` after changing an interface. Mockery v3.5.5 is pinned in `tools/go.mod`; no global installation is needed. `.mockery.yml` explicitly selects core ports (generated into `internal/mocks/port`) and Kafka reader/writer interfaces (generated into adapter-local `mock_*_test.go` files). Commit regenerated output with interface changes and never edit generated mocks by hand. If an interface is removed or renamed, remove its obsolete generated file as well. Generation runs independently of tests, OpenAPI, and infrastructure.
+
+Use a fresh mock per test or subtest. Constructors register expectation checks with test cleanup; unexpected calls fail even when no expectations were registered, which checks validation short circuits. For example:
+
+```go
+issuer := portmocks.NewMockTokenIssuer(t) // http-api-template/internal/mocks/port
+issuer.EXPECT().Issue(ctx, email).Return(wantToken, nil).Once()
+token, err := NewAuth(issuer).Login(ctx, email, password)
+// Check token and err as usual.
+```
+
+Variadic arguments are expanded: expect each Kafka message or structured log argument separately. Stateful Kafka consumer fakes remain for retry/cancellation scenarios; Postgres tests retain SQLMock.
 
 ```sh
 make test                         # go test -race ./...
