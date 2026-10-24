@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	authadapter "http-api-template/internal/adapter/auth"
 	"http-api-template/internal/adapter/http/middleware"
@@ -414,4 +415,35 @@ func TestCreateWaitsForPublication(t *testing.T) {
 // Match correlation without coupling HTTP tests to Gin's context implementation.
 func httpRequestContext() interface{} {
 	return mock.MatchedBy(func(ctx context.Context) bool { return requestid.ID(ctx) == fixtureRequestID })
+}
+
+func TestServiceDeadlineErrorMapping(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		expired bool
+		err     error
+		want    int
+	}{
+		{"expired request", true, fmt.Errorf("query: %w", context.DeadlineExceeded), http.StatusGatewayTimeout},
+		{"dependency deadline only", false, context.DeadlineExceeded, http.StatusInternalServerError},
+		{"unrelated failure after deadline", true, errors.New("dependency failure"), http.StatusInternalServerError},
+		{"cancellation", false, context.Canceled, http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newHTTPFixture(t)
+			f.dummies.EXPECT().Get(httpRequestContext(), fixtureDummyID).Return(domain.Dummy{}, tc.err).Once()
+			request := httptest.NewRequest(http.MethodGet, dummyPath, nil)
+			request.Header.Set(middleware.RequestIDHeader, fixtureRequestID)
+			if tc.expired {
+				ctx, cancel := context.WithDeadline(request.Context(), time.Now().Add(-time.Second))
+				defer cancel()
+				request = request.WithContext(ctx)
+			}
+			response := httptest.NewRecorder()
+			f.router.ServeHTTP(response, request)
+			if response.Code != tc.want || response.Body.Len() != 0 {
+				t.Fatalf("status=%d body=%q", response.Code, response.Body.String())
+			}
+		})
+	}
 }

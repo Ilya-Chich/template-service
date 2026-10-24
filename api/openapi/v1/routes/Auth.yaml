@@ -27,3 +27,5 @@ paths:
           description: Request body exceeds 1 MiB (1048576 bytes); empty response body.
         '500':
           description: Unexpected token issuance failure; empty response body.
+        '504':
+          description: The five-second request budget (or an earlier parent deadline) expired during dependency work; empty response body.

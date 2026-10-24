@@ -175,6 +175,10 @@ Offsets commit explicitly after successful processing. Transient read/process/co
 
 HTTP accepts a single `X-Request-ID` of 1–128 ASCII letters, digits, dots, underscores, or hyphens; otherwise it generates a UUID. Responses echo the ID, which travels through context and the Kafka `request_id` header. Consumers generate missing/invalid IDs once per message and retain them across retries. Logs use structured JSON slog with request correlation and redact sensitive attributes; do not add passwords, tokens, authorization headers, or full event payloads to logs.
 
+## Request deadlines
+
+Each HTTP request receives a five-second context budget from handler entry, including body decoding. Earlier parent deadlines and client cancellation are preserved. Postgres queries and Kafka publication use this context. When a service operation returns a deadline error after the request deadline expires, the API returns `504` with an empty body. Other error mappings remain unchanged. Cancellation is cooperative and does not forcibly interrupt code or body reads. A timed-out Kafka publication may still succeed; `504` does not prove the command was rejected.
+
 ## Shutdown
 
 SIGINT/SIGTERM drain HTTP first, then cancel/wait for the consumer and reader close, close the Kafka writer, and close the SQL pool. Each phase has a fresh 10-second bound and later cleanup still runs after failure. A drain timeout force-closes HTTP; blocking context-free Close calls are bounded by waiting, not by cancelling the call itself. Runtime/cleanup errors and timeouts produce a nonzero exit. Expected cancellation and `http.ErrServerClosed` are normal. Compose allows 45 seconds before killing the process. Pending events may remain for restart; shutdown does not drain the entire topic.

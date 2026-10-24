@@ -8,7 +8,10 @@ import (
 	"time"
 )
 
-const shutdownTimeout = 10 * time.Second
+const (
+	shutdownTimeout = 10 * time.Second
+	requestTimeout  = 5 * time.Second
+)
 
 // A signal is normal only when every cause is cancellation. In particular,
 // errors.Join from startup cleanup must not hide a separate Close failure.
@@ -31,10 +34,18 @@ func expectedCancellation(ctx context.Context, err error) bool {
 
 func newHTTPServer(address string, handler http.Handler) *http.Server {
 	return &http.Server{
-		Addr: address, Handler: handler,
+		Addr: address, Handler: withRequestDeadline(handler),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
 		WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second,
 	}
+}
+
+func withRequestDeadline(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), requestTimeout)
+		defer cancel()
+		handler.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // bounded also bounds operations such as Close that do not accept a context.

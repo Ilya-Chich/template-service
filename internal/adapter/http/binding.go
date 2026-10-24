@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -53,6 +54,8 @@ func bodyReadError(ctx *gin.Context, err error) {
 
 func (h *handler) fail(ctx *gin.Context, err error, allowNotFound bool) {
 	switch {
+	case errors.Is(ctx.Request.Context().Err(), context.DeadlineExceeded) && errors.Is(err, context.DeadlineExceeded):
+		ctx.Status(http.StatusGatewayTimeout)
 	case errors.Is(err, domain.ErrInvalid):
 		ctx.Status(http.StatusBadRequest)
 	case errors.Is(err, domain.ErrUnauthorized):

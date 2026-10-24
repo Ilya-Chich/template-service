@@ -34,6 +34,8 @@ paths:
           description: Request body exceeds 1 MiB (1048576 bytes); empty response body.
         '500':
           description: Publication or unexpected service failure; empty response body.
+        '504':
+          description: The five-second request budget (or an earlier parent deadline) expired during dependency work; empty response body.
   DummyById:
     parameters:
       - name: id
@@ -60,6 +62,8 @@ paths:
           description: Dummy is not currently stored; empty response body.
         '500':
           description: Unexpected service failure; empty response body.
+        '504':
+          description: The five-second request budget (or an earlier parent deadline) expired during dependency work; empty response body.
     patch:
       tags: [Dummies]
       operationId: PatchDummy
@@ -88,6 +92,8 @@ paths:
           description: Request body exceeds 1 MiB (1048576 bytes); empty response body.
         '500':
           description: Publication or unexpected service failure; empty response body.
+        '504':
+          description: The five-second request budget (or an earlier parent deadline) expired during dependency work; empty response body.
     delete:
       tags: [Dummies]
       operationId: DeleteDummy
@@ -106,3 +112,5 @@ paths:
           description: Missing or invalid bearer token; empty response body.
         '500':
           description: Publication or unexpected service failure; empty response body.
+        '504':
+          description: The five-second request budget (or an earlier parent deadline) expired during dependency work; empty response body.
